@@ -33,6 +33,7 @@ import type {
   NovaRing,
   Particle,
   PendingEcho,
+  PendingProjectile,
   Pickup,
   Projectile,
   SweepArc,
@@ -129,6 +130,7 @@ export class HollowWarEngine {
   groundZones: GroundZone[] = [];
   incursionPortals: IncursionPortal[] = [];
   pendingEchoes: PendingEcho[] = [];
+  pendingProjectiles: PendingProjectile[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -219,6 +221,7 @@ export class HollowWarEngine {
     this.groundZones = [];
     this.incursionPortals = [];
     this.pendingEchoes = [];
+    this.pendingProjectiles = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -448,6 +451,7 @@ export class HollowWarEngine {
     this.updateConditions(Math.hypot(this.player.vx, this.player.vy) > 15);
     this.updateArts(dt);
     this.updateEchoes(dt);
+    this.updatePendingProjectiles(dt);
     this.updateMinions(dt);
     this.updateTotems(dt);
     this.updateTraps(dt);
@@ -542,6 +546,23 @@ export class HollowWarEngine {
     }
   }
 
+  private updatePendingProjectiles(dt: number): void {
+    for (let i = this.pendingProjectiles.length - 1; i >= 0; i--) {
+      const item = this.pendingProjectiles[i];
+      item.delay -= dt;
+      if (item.delay <= 0) {
+        this.pendingProjectiles.splice(i, 1);
+        this.projectiles.push({
+          id: nextEntityId++,
+          ...item.proj,
+          x: this.player.x + Math.cos(Math.atan2(item.proj.vy, item.proj.vx)) * 16,
+          y: this.player.y + Math.sin(Math.atan2(item.proj.vy, item.proj.vx)) * 16,
+          hitIds: new Set(),
+        });
+      }
+    }
+  }
+
   private castArt(art: EquippedArt, def: ArtDefinition, extraMods: Modifier[]): void {
     if (def.behavior === 'projectile') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
@@ -549,14 +570,17 @@ export class HollowWarEngine {
         (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
       const areaScale = this.sheet.get('area', def.tags, extraMods);
-      const speed = def.projectileSpeed ?? 520;
-      const spreadStep = count > 1 ? (def.homing ? 0.34 : 0.14) : 0;
+      const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
+      const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
+      const speed = (def.projectileSpeed ?? 520) * speedScale;
+      const life = (def.baseDuration ?? 1.6) * durScale;
+      const spreadStep = count > 1 ? (def.homing ? 0.34 : def.id === 'fan_of_blades' ? 0.22 : 0.14) : 0;
       const startAngle = this.player.aimAngle - ((count - 1) * spreadStep) / 2;
+      const stagger = def.staggerDelay ?? 0;
 
       for (let i = 0; i < count; i++) {
         const a = startAngle + i * spreadStep;
-        this.projectiles.push({
-          id: nextEntityId++,
+        const projData = {
           x: this.player.x + Math.cos(a) * 16,
           y: this.player.y + Math.sin(a) * 16,
           vx: Math.cos(a) * speed,
@@ -565,13 +589,18 @@ export class HollowWarEngine {
           color: def.color,
           artId: def.id,
           pierceLeft: pierce,
-          life: 1.8,
-          hitIds: new Set(),
+          life,
+          hitIds: new Set<number>(),
           homing: def.homing,
           explodeRadius: def.explodeRadius ? def.explodeRadius * areaScale : undefined,
           explodeScale: def.explodeScale,
           extraMods,
-        });
+        };
+        if (stagger > 0 && i > 0) {
+          this.pendingProjectiles.push({ delay: i * stagger, proj: projData });
+        } else {
+          this.projectiles.push({ id: nextEntityId++, ...projData });
+        }
       }
     } else if (def.behavior === 'spiral') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
@@ -608,7 +637,8 @@ export class HollowWarEngine {
         (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
       const areaScale = this.sheet.get('area', def.tags, extraMods);
-      const speed = def.projectileSpeed ?? 430;
+      const speed = (def.projectileSpeed ?? 430) * this.sheet.get('projectileSpeed', def.tags, extraMods);
+      const life = (def.baseDuration ?? 1.5) * this.sheet.get('projectileDuration', def.tags, extraMods);
       for (let i = 0; i < count; i++) {
         const a = this.player.aimAngle + (i / count) * Math.PI * 2;
         this.projectiles.push({
@@ -621,7 +651,7 @@ export class HollowWarEngine {
           color: def.color,
           artId: def.id,
           pierceLeft: pierce,
-          life: 1.5,
+          life,
           hitIds: new Set(),
           extraMods,
         });

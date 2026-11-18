@@ -209,3 +209,8 @@ export interface PendingEcho {
   artId: string;
   delay: number;
 }
+
+export interface PendingProjectile {
+  delay: number;
+  proj: Omit<Projectile, 'id'>;
+}

@@ -261,6 +261,8 @@ export function renderModal(
       ['Crit Chance', `${(engine.sheet.get('critChance') * 100).toFixed(1)}%`],
       ['Crit Multiplier', `${(engine.sheet.get('critMulti') * 100).toFixed(0)}%`],
       ['Area of Effect', `${(engine.sheet.get('area') * 100).toFixed(0)}%`],
+      ['Projectile Speed', `${(engine.sheet.get('projectileSpeed') * 100).toFixed(0)}%`],
+      ['Projectile Range', `${(engine.sheet.get('projectileDuration') * 100).toFixed(0)}%`],
       ['Extra Projectiles', Math.round(engine.sheet.get('projectileCount'))],
       ['Chain Count', Math.round(engine.sheet.get('chainCount'))],
       ['Ailment / DoT Mult', `${(engine.sheet.get('dotDamage') * 100).toFixed(0)}%`],

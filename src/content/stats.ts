@@ -36,6 +36,8 @@ export const HOLLOW_WAR_STAT_RULES = new StatRules({
   area: { label: 'Area of Effect', base: 1, min: 0.35 },
 
   projectileCount: { label: 'Extra Projectiles', base: 0, min: 0 },
+  projectileSpeed: { label: 'Projectile Speed', base: 1, min: 0.35, max: 3.0, percent: true },
+  projectileDuration: { label: 'Projectile Range / Duration', base: 1, min: 0.35, max: 3.0, percent: true },
   pierceCount: { label: 'Pierce Count', base: 0, min: 0 },
   chainCount: { label: 'Chain Count', base: 0, min: 0 },
 

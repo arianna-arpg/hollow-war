@@ -27,6 +27,8 @@ export interface ArtDefinition extends SkillDamageSpec {
   baseProjectiles: number;
   baseRadius: number;
   projectileSpeed?: number;
+  baseDuration?: number;
+  staggerDelay?: number;
   baseChain?: number;
   basePierce?: number;
   homing?: boolean;
@@ -97,8 +99,27 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 5,
     projectileSpeed: 620,
+    baseDuration: 1.4,
     basePierce: 2,
     tags: ['spell', 'projectile', 'fire'],
+  },
+  piercing_arrow: {
+    id: 'piercing_arrow',
+    name: 'Piercing Arrow',
+    description:
+      'Looses a high-velocity iron shaft that punches straight through up to 3 enemies across long range.',
+    color: '#e2e8f0',
+    behavior: 'projectile',
+    baseDamage: { physical: 26 },
+    damageEffectiveness: 1.1,
+    baseCooldown: 0.62,
+    baseCritChance: 0.08,
+    baseProjectiles: 1,
+    baseRadius: 5,
+    projectileSpeed: 740,
+    baseDuration: 1.75,
+    basePierce: 3,
+    tags: ['attack', 'projectile', 'physical'],
   },
   frostbolt: {
     id: 'frostbolt',
@@ -165,16 +186,18 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'fan_of_blades',
     name: 'Fan of Blades',
     description:
-      'Throws a fan of 5 tempered knives in a wide frontal arc.',
+      'Unfurls a staggered, close-range fan of 5 tempered knives in a wide frontal arc.',
     color: '#c0c8d8',
     behavior: 'projectile',
-    baseDamage: { physical: 13 },
-    damageEffectiveness: 0.7,
-    baseCooldown: 0.68,
+    baseDamage: { physical: 15 },
+    damageEffectiveness: 0.75,
+    baseCooldown: 0.66,
     baseCritChance: 0.08,
     baseProjectiles: 5,
     baseRadius: 5.5,
-    projectileSpeed: 540,
+    projectileSpeed: 500,
+    baseDuration: 0.45,
+    staggerDelay: 0.028,
     tags: ['attack', 'projectile', 'physical'],
   },
   sacrament_of_ruin: {
@@ -689,6 +712,102 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
       { stat: 'area', kind: 'inc', value: -0.15 },
     ],
   },
+  far_reach: {
+    id: 'far_reach',
+    name: 'Inscription of Far Reach',
+    shortName: 'Far Reach',
+    description: 'Extends projectile flight across the barrow: +45% Projectile Speed and +45% Projectile Range/Duration, but 12% Less Projectile Damage.',
+    color: '#38bdf8',
+    requiredTags: ['projectile'],
+    mods: [
+      { stat: 'projectileSpeed', kind: 'inc', value: 0.45 },
+      { stat: 'projectileDuration', kind: 'inc', value: 0.45 },
+      { stat: 'damage', kind: 'more', value: -0.12, tags: ['projectile'] },
+    ],
+  },
+  frenzied_thralls: {
+    id: 'frenzied_thralls',
+    name: 'Inscription of Frenzied Thralls',
+    shortName: 'Frenzied',
+    description: 'Drives bound minions into a frenzy: +35% More Minion Attack & Cast Speed, at the cost of 15% Less Minion Damage.',
+    color: '#f87171',
+    requiredTags: ['minion'],
+    mods: [
+      { stat: 'attackSpeed', kind: 'more', value: 0.35 },
+      { stat: 'castSpeed', kind: 'more', value: 0.35 },
+      { stat: 'damage', kind: 'more', value: -0.15 },
+    ],
+  },
+  titanic_constructs: {
+    id: 'titanic_constructs',
+    name: 'Inscription of Titanic Frame',
+    shortName: 'Titanic',
+    description: 'Reinforces minions into heavy bruisers: +40% More Minion Damage and +25% Area, but 22% Less Minion Speed.',
+    color: '#d6d3d1',
+    requiredTags: ['minion'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.4 },
+      { stat: 'area', kind: 'inc', value: 0.25 },
+      { stat: 'attackSpeed', kind: 'more', value: -0.22 },
+      { stat: 'castSpeed', kind: 'more', value: -0.22 },
+    ],
+  },
+  necrotic_claws: {
+    id: 'necrotic_claws',
+    name: 'Inscription of Necrotic Claws',
+    shortName: 'Necrotic',
+    description: 'Coats minion strikes in rot: +35% Bleed & Poison Chance and +20% Armor Pen, but -20% Crit Multiplier.',
+    color: '#a855f7',
+    requiredTags: ['minion'],
+    mods: [
+      { stat: 'bleedChance', kind: 'flat', value: 0.35 },
+      { stat: 'poisonChance', kind: 'flat', value: 0.35 },
+      { stat: 'armorPen', kind: 'flat', value: 0.2 },
+      { stat: 'critMulti', kind: 'flat', value: -0.2 },
+    ],
+  },
+  twin_pylons: {
+    id: 'twin_pylons',
+    name: 'Inscription of Twin Pylons',
+    shortName: 'Twin Pylons',
+    description: 'Doubles the totem’s output: +1 Totem Projectile and +20% Cooldown Recovery, but 20% Less Totem Damage.',
+    color: '#fbbf24',
+    requiredTags: ['totem'],
+    mods: [
+      { stat: 'projectileCount', kind: 'flat', value: 1 },
+      { stat: 'cooldownRecovery', kind: 'inc', value: 0.2 },
+      { stat: 'damage', kind: 'more', value: -0.2 },
+    ],
+  },
+  siegeworks: {
+    id: 'siegeworks',
+    name: 'Inscription of Siegeworks',
+    shortName: 'Siegeworks',
+    description: 'Heavy ballistics for totems: +35% More Totem Damage and +15% Armor & Fire Pen, but 20% Less Totem Speed.',
+    color: '#c8b890',
+    requiredTags: ['totem'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.35 },
+      { stat: 'armorPen', kind: 'flat', value: 0.15 },
+      { stat: 'firePen', kind: 'flat', value: 0.15 },
+      { stat: 'attackSpeed', kind: 'more', value: -0.2 },
+      { stat: 'castSpeed', kind: 'more', value: -0.2 },
+    ],
+  },
+  volatile_powder: {
+    id: 'volatile_powder',
+    name: 'Inscription of Volatile Powder',
+    shortName: 'Volatile',
+    description: 'Packs extra blast powder into traps: +40% Blast Area and +25% Ignite & Chill Chance, but 15% Less Trap Damage.',
+    color: '#fb7185',
+    requiredTags: ['trap'],
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.4 },
+      { stat: 'igniteChance', kind: 'flat', value: 0.25 },
+      { stat: 'chillChance', kind: 'flat', value: 0.25 },
+      { stat: 'damage', kind: 'more', value: -0.15 },
+    ],
+  },
 };
 
 export interface ArtRankStep {
@@ -716,6 +835,11 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
       if (r === 2 || r === 5) return { summary: '+1 Pierce, +12% Cast Speed, +8% More Damage', mods: [{ stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'castSpeed', kind: 'inc', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
       if (r === 4 || r === 7) return { summary: '+1 Arrow, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
       return { summary: '+18% Ignite Chance, +8% Fire Pen, +10% More Damage', mods: [{ stat: 'igniteChance', kind: 'flat', value: 0.18 }, { stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'piercing_arrow':
+      if (r === 2 || r === 5) return { summary: '+1 Pierce, +20% Projectile Speed, +10% More Damage', mods: [{ stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'projectileSpeed', kind: 'inc', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r === 4 || r === 7) return { summary: '+1 Arrow, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+10% Crit Chance, +12% Armor Pen, +10% More Damage', mods: [{ stat: 'critChance', kind: 'flat', value: 0.1 }, { stat: 'armorPen', kind: 'flat', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
 
     case 'frostbolt':
       if (r === 2 || r === 5 || r === 8) return { summary: '+1 Shard, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };

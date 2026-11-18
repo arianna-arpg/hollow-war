@@ -143,7 +143,7 @@ describe('Hollow War Combat SDK', () => {
 
     // Fill active Arts to MAX_ACTIVE_ARTS (4)
     engine.addOrRankArt('whirlwind');
-    engine.addOrRankArt('raise_skeleton');
+    engine.addOrRankArt('summon_skeleton');
     engine.addOrRankArt('fire_mine');
     expect(engine.arts.length).toBe(MAX_ACTIVE_ARTS);
 

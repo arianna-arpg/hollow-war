@@ -74,6 +74,14 @@ export interface Projectile {
   homing?: boolean;
   explodeRadius?: number;
   explodeScale?: number;
+  spiral?: {
+    originX: number;
+    originY: number;
+    angle: number;
+    angularSpeed: number;
+    radius: number;
+    radialSpeed: number;
+  };
   extraMods?: Modifier[];
 }
 

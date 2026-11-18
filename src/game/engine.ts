@@ -332,7 +332,7 @@ export class HollowWarEngine {
           const a = (i / 6) * Math.PI * 2;
           this.minions.push({
             id: nextEntityId++,
-            artId: 'raise_skeleton',
+            artId: 'summon_skeleton',
             kind: 'skeleton',
             x: this.player.x + Math.cos(a) * 56,
             y: this.player.y + Math.sin(a) * 56,
@@ -405,11 +405,10 @@ export class HollowWarEngine {
             this.artId === 'hammer_of_judgment' ||
             this.artId === 'fan_of_blades' ||
             this.artId === 'frostbolt' ||
-            this.artId === 'soul_rend' ||
-            this.artId === 'raise_skeleton' ||
-            this.artId === 'flame_sprite' ||
-            this.artId === 'void_orb' ||
-            this.artId === 'bone_golem' ||
+            this.artId === 'sacrament_of_ruin' ||
+            this.artId === 'summon_skeleton' ||
+            this.artId === 'summon_flame_sprite' ||
+            this.artId === 'summon_bone_golem' ||
             this.artId === 'ballista_sentry' ||
             this.artId === 'poison_nova'
           ) {
@@ -581,6 +580,35 @@ export class HollowWarEngine {
           extraMods,
         });
       }
+    } else if (def.behavior === 'spiral') {
+      const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+      const pierce = (def.basePierce ?? 99) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      for (let i = 0; i < count; i++) {
+        const a = this.player.aimAngle + (i / count) * Math.PI * 2;
+        this.projectiles.push({
+          id: nextEntityId++,
+          x: this.player.x + Math.cos(a) * 18,
+          y: this.player.y + Math.sin(a) * 18,
+          vx: 0,
+          vy: 0,
+          radius: def.baseRadius * Math.sqrt(areaScale),
+          color: def.color,
+          artId: def.id,
+          pierceLeft: pierce,
+          life: 2.6,
+          hitIds: new Set(),
+          spiral: {
+            originX: this.player.x,
+            originY: this.player.y,
+            angle: a,
+            angularSpeed: 5.2,
+            radius: 18,
+            radialSpeed: 105,
+          },
+          extraMods,
+        });
+      }
     } else if (def.behavior === 'projectile_nova') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
       const pierce =
@@ -700,9 +728,9 @@ export class HollowWarEngine {
     const current = this.minions.filter((m) => m.artId === art.artId && !m.temporary);
     if (current.length < desired) {
       const kind =
-        art.artId === 'flame_sprite'
+        art.artId === 'summon_flame_sprite'
           ? 'flame_sprite'
-          : art.artId === 'bone_golem'
+          : art.artId === 'summon_bone_golem'
             ? 'bone_golem'
             : 'skeleton';
       for (let i = current.length; i < desired; i++) {
@@ -935,6 +963,10 @@ export class HollowWarEngine {
             this.applyArtHit(e, def, extraMods, art);
           }
         }
+        // Consecration also heals the player while standing on consecrated ground
+        if (Math.hypot(this.player.x - gz.x, this.player.y - gz.y) <= gz.radius + this.player.radius) {
+          this.player.life = Math.min(this.sheet.get('life'), this.player.life + 3.5);
+        }
       }
     }
   }
@@ -988,6 +1020,13 @@ export class HollowWarEngine {
 
     const extraConvs = art ? art.inscriptions.flatMap((i) => i.conversions ?? []) : [];
     const extraExtras = art ? art.inscriptions.flatMap((i) => i.extras ?? []) : [];
+    const innateAilmentMods: Modifier[] = [];
+    if (art?.artId === 'poison_nova') {
+      innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.6 });
+    } else if (art?.artId === 'rend') {
+      innateAilmentMods.push({ stat: 'bleedChance', kind: 'flat', value: 0.65 });
+    }
+    const mergedMods = innateAilmentMods.length > 0 ? [...extraMods, ...innateAilmentMods] : extraMods;
 
     const hasShock = enemy.ailments.some((a) => a.type === 'shock');
     const receipt = resolveHit(
@@ -999,7 +1038,7 @@ export class HollowWarEngine {
         damageTakenMult: hasShock ? 1.25 : 1.0,
       },
       Math.random,
-      extraMods,
+      mergedMods,
       extraConvs,
       extraExtras,
     );
@@ -1226,8 +1265,15 @@ export class HollowWarEngine {
         }
       }
 
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      if (p.spiral) {
+        p.spiral.angle += p.spiral.angularSpeed * dt;
+        p.spiral.radius += p.spiral.radialSpeed * dt;
+        p.x = p.spiral.originX + Math.cos(p.spiral.angle) * p.spiral.radius;
+        p.y = p.spiral.originY + Math.sin(p.spiral.angle) * p.spiral.radius;
+      } else {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
 
       if (p.fromEnemy) {
         const d = Math.hypot(p.x - this.player.x, p.y - this.player.y);

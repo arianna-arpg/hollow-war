@@ -2,7 +2,9 @@
 
 A theorycrafting-first **Vampire Survivors / Nova Drift** arena roguelite built on **Hollow Wake** combat principles.
 
-**Play Live:** https://arianna-arpg.github.io/hollow-war/
+**Website:** https://arianna-arpg.github.io/hollow-war/
+
+**Play in browser:** https://arianna-arpg.github.io/hollow-war/play/
 
 ## Highlights
 - **Hollow Wake Classes & Ultimates**: Deploy as the *Magician*, *Warrior*, *Rogue*, *Necromancer*, *Pyromancer*, or *Guardian*—each with a distinct class silhouette and active Ultimate (`[Space]` / `[Shift]`).
@@ -26,5 +28,4 @@ npm run build
 ```
 
 ## Roadmap
-- Dedicated Hollow War front-end portal matching the Hollow Wake web shell.
 - Cross-game Hollow Wake progression & shared unlocks (titles, wardrobe aesthetics, and relic synergies).

@@ -5,7 +5,17 @@ export const MAX_ACTIVE_ARTS = 4;
 export const MAX_ART_RANK = 8;
 export const MAX_INSCRIPTIONS_PER_ART = 2;
 
-export type ArtBehavior = 'projectile' | 'chain' | 'orbit' | 'nova' | 'sweep' | 'minion' | 'totem' | 'trap';
+export type ArtBehavior =
+  | 'projectile'
+  | 'projectile_nova'
+  | 'chain'
+  | 'orbit'
+  | 'nova'
+  | 'ground_zone'
+  | 'sweep'
+  | 'minion'
+  | 'totem'
+  | 'trap';
 
 export interface ArtDefinition extends SkillDamageSpec {
   id: string;
@@ -189,16 +199,17 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'poison_nova',
     name: 'Poison Nova',
     description:
-      'Exhales a ring of grave-miasma around your vessel, saturating nearby foes with stacking venom.',
+      'Launches a 360° ring of venom projectiles outward from your vessel, scaling with extra projectiles and pierce.',
     color: '#a855f7',
-    behavior: 'nova',
-    baseDamage: { chaos: 24 },
-    damageEffectiveness: 1.1,
-    baseCooldown: 1.28,
-    baseCritChance: 0.02,
-    baseProjectiles: 1,
-    baseRadius: 148,
-    tags: ['spell', 'aoe', 'nova', 'chaos'],
+    behavior: 'projectile_nova',
+    baseDamage: { chaos: 18 },
+    damageEffectiveness: 0.9,
+    baseCooldown: 1.15,
+    baseCritChance: 0.03,
+    baseProjectiles: 8,
+    baseRadius: 6,
+    projectileSpeed: 430,
+    tags: ['spell', 'projectile', 'chaos'],
   },
   chain_lightning: {
     id: 'chain_lightning',
@@ -235,16 +246,16 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'consecration',
     name: 'Consecration',
     description:
-      'Pulses a sanctified ring of golden ember around you, scorching the wicked and the risen.',
+      'Sanctifies a lingering patch of ground for 4.5s that periodically scorches enemies within its radius.',
     color: '#fbbf24',
-    behavior: 'nova',
-    baseDamage: { fire: 20, physical: 10 },
-    damageEffectiveness: 1.15,
-    baseCooldown: 1.35,
+    behavior: 'ground_zone',
+    baseDamage: { fire: 14, physical: 8 },
+    damageEffectiveness: 0.85,
+    baseCooldown: 2.6,
     baseCritChance: 0.04,
     baseProjectiles: 1,
-    baseRadius: 158,
-    tags: ['spell', 'aoe', 'nova', 'fire'],
+    baseRadius: 128,
+    tags: ['spell', 'aoe', 'fire'],
   },
   frost_nova: {
     id: 'frost_nova',

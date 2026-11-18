@@ -23,6 +23,7 @@ import type {
   Enemy,
   EquippedArt,
   FloatingText,
+  GroundZone,
   IncursionPortal,
   LightningArc,
   MinionEntity,
@@ -117,6 +118,7 @@ export class HollowWarEngine {
   minions: MinionEntity[] = [];
   totems: TotemEntity[] = [];
   traps: TrapEntity[] = [];
+  groundZones: GroundZone[] = [];
   incursionPortals: IncursionPortal[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
@@ -204,6 +206,7 @@ export class HollowWarEngine {
     this.minions = [];
     this.totems = [];
     this.traps = [];
+    this.groundZones = [];
     this.incursionPortals = [];
     this.pickups = [];
     this.floatingTexts = [];
@@ -407,7 +410,8 @@ export class HollowWarEngine {
             this.artId === 'flame_sprite' ||
             this.artId === 'void_orb' ||
             this.artId === 'bone_golem' ||
-            this.artId === 'ballista_sentry'
+            this.artId === 'ballista_sentry' ||
+            this.artId === 'poison_nova'
           ) {
             mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
           } else if (
@@ -415,7 +419,6 @@ export class HollowWarEngine {
             this.artId === 'rend' ||
             this.artId === 'whirlwind' ||
             this.artId === 'consecration' ||
-            this.artId === 'poison_nova' ||
             this.artId === 'frost_nova' ||
             this.artId === 'fire_mine' ||
             this.artId === 'frost_trap' ||
@@ -471,6 +474,7 @@ export class HollowWarEngine {
     this.updateMinions(dt);
     this.updateTotems(dt);
     this.updateTraps(dt);
+    this.updateGroundZones(dt);
     this.updateProjectiles(dt);
     this.updateEnemies(dt);
     this.updateAilments(dt);
@@ -577,6 +581,44 @@ export class HollowWarEngine {
           extraMods,
         });
       }
+    } else if (def.behavior === 'projectile_nova') {
+      const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+      const pierce =
+        (def.basePierce ?? 0) +
+        Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      const speed = def.projectileSpeed ?? 430;
+      for (let i = 0; i < count; i++) {
+        const a = this.player.aimAngle + (i / count) * Math.PI * 2;
+        this.projectiles.push({
+          id: nextEntityId++,
+          x: this.player.x + Math.cos(a) * 14,
+          y: this.player.y + Math.sin(a) * 14,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          radius: def.baseRadius * Math.sqrt(areaScale),
+          color: def.color,
+          artId: def.id,
+          pierceLeft: pierce,
+          life: 1.5,
+          hitIds: new Set(),
+          extraMods,
+        });
+      }
+    } else if (def.behavior === 'ground_zone') {
+      if (this.groundZones.length >= 4) this.groundZones.shift();
+      const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+      this.groundZones.push({
+        id: nextEntityId++,
+        artId: def.id,
+        x: this.player.x,
+        y: this.player.y,
+        radius,
+        life: 4.5,
+        maxLife: 4.5,
+        tickTimer: 0.05,
+        color: def.color,
+      });
     } else if (def.behavior === 'chain') {
       const range = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
       const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
@@ -867,6 +909,32 @@ export class HollowWarEngine {
           }
         }
         this.traps.splice(i, 1);
+      }
+    }
+  }
+
+  private updateGroundZones(dt: number): void {
+    for (let i = this.groundZones.length - 1; i >= 0; i--) {
+      const gz = this.groundZones[i];
+      gz.life -= dt;
+      if (gz.life <= 0) {
+        this.groundZones.splice(i, 1);
+        continue;
+      }
+      gz.tickTimer -= dt;
+      if (gz.tickTimer <= 0) {
+        const art = this.arts.find((a) => a.artId === gz.artId);
+        const def = ARTS[gz.artId];
+        if (!art || !def) continue;
+        const extraMods = this.getArtExtraMods(art);
+        const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
+        gz.tickTimer = 0.55 / spd;
+
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - gz.x, e.y - gz.y) <= gz.radius + e.radius) {
+            this.applyArtHit(e, def, extraMods, art);
+          }
+        }
       }
     }
   }
@@ -1379,13 +1447,18 @@ export class HollowWarEngine {
 
     if (this.player.life <= 0) {
       this.player.life = 0;
-      const earned = calculateRunShards(this.elapsed, this.kills, this.player.level);
-      this.lastRunShards = earned;
-      this.archive.shards += earned;
-      this.archive.totalRuns += 1;
-      saveArchive(this.archive);
-      this.setPhase('game_over');
+      this.endRun();
     }
+  }
+
+  endRun(): void {
+    if (this.phase === 'game_over' || this.phase === 'vessel_select') return;
+    const earned = calculateRunShards(this.elapsed, this.kills, this.player.level);
+    this.lastRunShards = earned;
+    this.archive.shards += earned;
+    this.archive.totalRuns += 1;
+    saveArchive(this.archive);
+    this.setPhase('game_over');
   }
 
   private updateAilments(dt: number): void {

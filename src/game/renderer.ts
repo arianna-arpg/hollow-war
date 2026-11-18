@@ -449,6 +449,33 @@ export function renderGame(
   // Hollow Wake Warfront / Ashen Barrow terrain & doodads
   renderHollowTerrain(ctx, engine.player.x, engine.player.y, width, height, engine.elapsed);
 
+  // Lingering Ground Zones (Consecration)
+  for (const gz of engine.groundZones) {
+    const fade = Math.min(1, gz.life / 0.8);
+    const pulse = 0.88 + Math.sin(engine.elapsed * 5 + gz.id) * 0.12;
+    ctx.save();
+    ctx.translate(gz.x, gz.y);
+    ctx.globalAlpha = fade * 0.2;
+    ctx.fillStyle = gz.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, gz.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = fade * 0.65 * pulse;
+    ctx.strokeStyle = gz.color;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, gz.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.rotate(engine.elapsed * 0.6);
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath();
+    ctx.arc(0, 0, gz.radius * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Demonic Incursion Portals
   for (const portal of engine.incursionPortals) {
     ctx.save();

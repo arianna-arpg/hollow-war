@@ -252,7 +252,10 @@ export function renderModal(
               Live Hollow Wake StatSheet · Active Conditions: ${conds.length ? conds.join(', ') : 'none'}
             </div>
           </div>
-          <button class="btn btn-primary" id="btn-resume">Resume [Tab / Esc]</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btn-end-run" style="color:#fca5a5;border-color:rgba(239,68,68,0.5)">End Run</button>
+            <button class="btn btn-primary" id="btn-resume">Resume [Tab / Esc]</button>
+          </div>
         </div>
 
         <div class="inspector-grid">
@@ -315,6 +318,7 @@ export function renderModal(
     `;
 
     container.querySelector('#btn-resume')?.addEventListener('click', callbacks.onCloseInspector);
+    container.querySelector('#btn-end-run')?.addEventListener('click', () => engine.endRun());
     return;
   }
 

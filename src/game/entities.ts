@@ -180,3 +180,15 @@ export interface IncursionPortal {
   wavesLeft: number;
   isMajor: boolean;
 }
+
+export interface GroundZone {
+  id: number;
+  artId: string;
+  x: number;
+  y: number;
+  radius: number;
+  life: number;
+  maxLife: number;
+  tickTimer: number;
+  color: string;
+}

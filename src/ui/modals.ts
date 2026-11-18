@@ -1,4 +1,4 @@
-import { SKILLS } from '../content/skills.ts';
+import { ARTS } from '../content/skills.ts';
 import { VESSELS } from '../content/vessels.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 
@@ -22,10 +22,10 @@ export function renderModal(
       <div class="modal-card">
         <div class="modal-title">HOLLOW WAR</div>
         <div class="modal-subtitle">
-          Theorycraft emergent builds on the Hollow Wake Combat SDK. Choose your Vessel to enter the arena.
-          <span style="color:#f59e0b">Controls: WASD / Arrows to move · Space / Shift to Dash · Q to toggle Aim · Tab for Build Inspector</span>
+          Step onto the Ashen Warfront against the Demon and Undead hosts. Choose a Hollow Wake class to shape your Arts, Inscriptions, Doctrines, and Oaths.
+          <span style="color:#f59e0b">WASD / Arrows to move · Space / Shift to Dash · Q to toggle Aim · Tab for Build Inspector</span>
         </div>
-        <div class="grid-4">
+        <div class="grid-3">
           ${VESSELS.map(
             (v) => `
             <div class="choice-card" data-vessel="${v.id}" style="border-color:${v.color}66">
@@ -34,13 +34,13 @@ export function renderModal(
                 <div style="font-size:18px;font-weight:800;margin:2px 0 8px">${v.name}</div>
                 <div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:10px">${v.description}</div>
                 <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">
-                  Starting Skill: <strong style="color:#f8fafc">${SKILLS[v.startingSkillId].name}</strong>
+                  Opening Art: <strong style="color:#f8fafc">${ARTS[v.startingArtId].name}</strong>
                 </div>
                 <div class="tag-row">
                   ${v.synergyHints.map((h) => `<span class="tag-pill">${h}</span>`).join('')}
                 </div>
               </div>
-              <button class="btn btn-primary" style="width:100%;margin-top:8px">Deploy Vessel</button>
+              <button class="btn btn-primary" style="width:100%;margin-top:8px">Enter the Warfront</button>
             </div>
           `,
           ).join('')}
@@ -61,13 +61,13 @@ export function renderModal(
     container.innerHTML = `
       <div class="modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div class="modal-title">Level ${engine.player.level} — Theorycraft Draft</div>
+          <div class="modal-title">Level ${engine.player.level} — Forge Your Build</div>
           <button class="btn" id="btn-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
             Reroll (${engine.player.rerolls} left)
           </button>
         </div>
         <div class="modal-subtitle">
-          Choose a Skill, Support Socket, Conduit, or Keystone. DPS deltas are simulated live on your forked StatSheet.
+          Choose an Art, Inscription, Doctrine, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
         </div>
         <div class="grid-3">
           ${engine.draftOptions
@@ -76,10 +76,12 @@ export function renderModal(
               const deltaHtml =
                 dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
                   ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
-                  : `<span style="font-size:12px;color:#94a3b8">Utility / Survivability</span>`;
+                  : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
+
+              const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
 
               return `
-                <div class="choice-card rarity-${card.rarity}" data-draft="${idx}">
+                <div class="choice-card ${rarityClass}" data-draft="${idx}">
                   <div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                       <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#f59e0b">${summaryText}</span>
@@ -87,14 +89,14 @@ export function renderModal(
                     </div>
                     <div style="font-size:17px;font-weight:800;margin-bottom:8px">${card.name}</div>
                     <div style="font-size:13px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>
-                    ${card.tradeoff ? `<div class="tradeoff-box" style="margin-bottom:10px">Trade-off: ${card.tradeoff}</div>` : ''}
+                    ${card.tradeoff ? `<div class="tradeoff-box" style="margin-bottom:10px">Burden: ${card.tradeoff}</div>` : ''}
                     <div class="tag-row">
                       ${card.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
                     </div>
                   </div>
                   <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
                     ${deltaHtml}
-                    <span style="font-size:12px;font-weight:700;color:#fbbf24">Select →</span>
+                    <span style="font-size:12px;font-weight:700;color:#fbbf24">Claim →</span>
                   </div>
                 </div>
               `;
@@ -139,7 +141,7 @@ export function renderModal(
       <div class="modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
           <div>
-            <div class="modal-title">Theorycrafting Inspector — ${engine.vessel.name}</div>
+            <div class="modal-title">Build & Arts Inspector — ${engine.vessel.name}</div>
             <div class="modal-subtitle" style="margin-bottom:0">
               Live Hollow Wake StatSheet · Active Conditions: ${conds.length ? conds.join(', ') : 'none'}
             </div>
@@ -149,11 +151,11 @@ export function renderModal(
 
         <div class="inspector-grid">
           <div class="inspector-panel">
-            <h3>Skill DPS Breakdown</h3>
-            ${engine.skills
-              .map((sk) => {
-                const def = SKILLS[sk.skillId];
-                const pv = engine.getSkillPreview(sk);
+            <h3>Arts & Inscriptions</h3>
+            ${engine.arts
+              .map((ar) => {
+                const def = ARTS[ar.artId];
+                const pv = engine.getArtPreview(ar);
                 const types = Object.entries(pv.byType)
                   .filter(([, v]) => v > 0.5)
                   .map(([k, v]) => `${k}: ${v.toFixed(1)}`)
@@ -161,7 +163,7 @@ export function renderModal(
                 return `
                   <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(148,163,184,0.12)">
                     <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px">
-                      <span style="color:${def.color}">${def.name} (Lv.${sk.level})</span>
+                      <span style="color:${def.color}">${def.name} (Rank ${ar.level})</span>
                       <span>${Math.round(pv.estimatedDps)} DPS</span>
                     </div>
                     <div style="font-size:11px;color:#94a3b8;margin-top:2px">
@@ -169,8 +171,8 @@ export function renderModal(
                     </div>
                     <div style="font-size:11px;color:#cbd5e1;margin-top:2px">${types}</div>
                     ${
-                      sk.supports.length
-                        ? `<div class="support-pips">${sk.supports.map((s) => `<span class="support-pip" style="color:${s.color}">${s.name}</span>`).join('')}</div>`
+                      ar.inscriptions.length
+                        ? `<div class="support-pips">${ar.inscriptions.map((ins) => `<span class="support-pip" style="color:${ins.color}">${ins.name}</span>`).join('')}</div>`
                         : ''
                     }
                   </div>
@@ -205,16 +207,16 @@ export function renderModal(
 
     container.innerHTML = `
       <div class="modal-card" style="max-width:560px;text-align:center">
-        <div class="modal-title" style="color:#ef4444">VESSEL SHATTERED</div>
-        <div class="modal-subtitle">${engine.vessel.name} fell at Level ${engine.player.level}</div>
+        <div class="modal-title" style="color:#ef4444">THE VESSEL FALLS</div>
+        <div class="modal-subtitle">Your ${engine.vessel.name} was overwhelmed at Level ${engine.player.level}</div>
         <div class="inspector-panel" style="text-align:left;margin-bottom:18px">
-          <div class="stat-line"><span>Survival Time</span><strong>${mins}:${secs}</strong></div>
-          <div class="stat-line"><span>Enemies Slain</span><strong>${engine.kills}</strong></div>
+          <div class="stat-line"><span>Time on the Warfront</span><strong>${mins}:${secs}</strong></div>
+          <div class="stat-line"><span>Demons & Undead Slain</span><strong>${engine.kills}</strong></div>
           <div class="stat-line"><span>Total Damage Dealt</span><strong>${Math.round(engine.totalDamageDealt).toLocaleString()}</strong></div>
           <div class="stat-line"><span>Peak Estimated DPS</span><strong>${Math.round(engine.getTotalEstimatedDps())}</strong></div>
         </div>
         <button class="btn btn-primary" id="btn-restart" style="width:100%;padding:12px;font-size:14px">
-          Choose Vessel & Play Again
+          Choose Class & Re-enter
         </button>
       </div>
     `;

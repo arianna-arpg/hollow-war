@@ -1,4 +1,4 @@
-import { SKILLS } from '../content/skills.ts';
+import { ARTS } from '../content/skills.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 
 export function renderHud(
@@ -62,35 +62,35 @@ export function renderHud(
 
       <div class="hud-center-stats">
         <div class="stat-chip">TIME <strong>${mins}:${secs}</strong></div>
-        <div class="stat-chip">KILLS <strong>${engine.kills}</strong></div>
+        <div class="stat-chip">SLAIN <strong>${engine.kills}</strong></div>
         <div class="stat-chip">EST. DPS <strong>${estDps}</strong></div>
         <div class="stat-chip">DASH <strong>${engine.player.dashCooldown <= 0 ? 'READY' : engine.player.dashCooldown.toFixed(1) + 's'}</strong></div>
       </div>
 
       <div class="hud-actions">
         <button class="btn" id="btn-auto-aim">[Q] Aim: ${engine.autoAim ? 'AUTO' : 'MOUSE'}</button>
-        <button class="btn btn-primary" id="btn-inspector">[TAB] Build & Stats</button>
+        <button class="btn btn-primary" id="btn-inspector">[TAB] Build & Arts</button>
       </div>
     </div>
 
     <div class="hud-bottom">
       <div class="skill-rack">
-        ${engine.skills
-          .map((sk) => {
-            const def = SKILLS[sk.skillId];
-            const preview = engine.getSkillPreview(sk);
+        ${engine.arts
+          .map((ar) => {
+            const def = ARTS[ar.artId];
+            const preview = engine.getArtPreview(ar);
             return `
               <div class="skill-slot" style="border-color:${def.color}55">
                 <div class="skill-slot-header">
                   <span style="color:${def.color}">${def.name}</span>
-                  <span>Lv.${sk.level}</span>
+                  <span>Rank ${ar.level}</span>
                 </div>
                 <div style="font-size:11px;color:#94a3b8;margin-top:2px">
                   ${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}% Crit
                 </div>
                 <div class="support-pips">
-                  ${sk.supports
-                    .map((s) => `<span class="support-pip" style="color:${s.color};border-color:${s.color}55">${s.name.replace(' Support', '')}</span>`)
+                  ${ar.inscriptions
+                    .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
                     .join('')}
                 </div>
               </div>

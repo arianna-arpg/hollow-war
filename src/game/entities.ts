@@ -1,13 +1,12 @@
-import type { SupportSocketDef } from '../content/skills.ts';
+import type { InscriptionDef } from '../content/skills.ts';
 import type { AilmentType, DamageType, Modifier } from '../sdk/types.ts';
 
-export interface EquippedSkill {
-  skillId: string;
+export interface EquippedArt {
+  artId: string;
   level: number;
   cooldownTimer: number;
-  supports: SupportSocketDef[];
-  /** Accumulated skill-level more multiplier: (level - 1) * 0.22 */
-  getSkillMods(): Modifier[];
+  inscriptions: InscriptionDef[];
+  getArtMods(): Modifier[];
 }
 
 export interface AilmentStack {
@@ -17,16 +16,30 @@ export interface AilmentStack {
   maxDuration: number;
 }
 
-export type EnemyArchetype = 'thrall' | 'stalker' | 'bulwark' | 'volatile' | 'weaver' | 'boss';
+export type EnemyFaction = 'undead' | 'demon';
+
+export type EnemyArchetype =
+  | 'ghoul'
+  | 'skeleton_warrior'
+  | 'skeleton_archer'
+  | 'wraith'
+  | 'imp'
+  | 'hellhound'
+  | 'demon_brute'
+  | 'lich'
+  | 'demon_lord';
 
 export interface Enemy {
   id: number;
   archetype: EnemyArchetype;
+  faction: EnemyFaction;
+  isBoss: boolean;
   name: string;
   x: number;
   y: number;
   vx: number;
   vy: number;
+  facing: number;
   radius: number;
   life: number;
   maxLife: number;
@@ -38,9 +51,7 @@ export interface Enemy {
   color: string;
   hitFlash: number;
   ailments: AilmentStack[];
-  /** Cooldown for ranged/boss abilities */
   abilityTimer: number;
-  /** Orbit blade hit immunity per skill/blade */
   orbitHitCooldown: number;
 }
 
@@ -52,7 +63,7 @@ export interface Projectile {
   vy: number;
   radius: number;
   color: string;
-  skillId: string;
+  artId: string;
   pierceLeft: number;
   life: number;
   hitIds: Set<number>;
@@ -74,6 +85,17 @@ export interface NovaRing {
   y: number;
   radius: number;
   maxRadius: number;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+export interface SweepArc {
+  x: number;
+  y: number;
+  angle: number;
+  radius: number;
+  arcSpread: number;
   color: string;
   life: number;
   maxLife: number;

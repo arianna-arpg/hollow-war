@@ -1,4 +1,4 @@
-import { SKILLS, SUPPORT_SOCKETS, type SkillDefinition } from '../content/skills.ts';
+import { ARTS, INSCRIPTIONS, type ArtDefinition } from '../content/skills.ts';
 import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
 import { UPGRADE_POOL, type UpgradeCardDef } from '../content/upgrades.ts';
 import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
@@ -8,13 +8,14 @@ import { StatSheet } from '../sdk/stat-sheet.ts';
 import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview } from '../sdk/types.ts';
 import type {
   Enemy,
-  EquippedSkill,
+  EquippedArt,
   FloatingText,
   LightningArc,
   NovaRing,
   Particle,
   Pickup,
   Projectile,
+  SweepArc,
 } from './entities.ts';
 import { createEnemy, pickArchetypeForTime, resetEnemyIds } from './spawner.ts';
 
@@ -22,7 +23,7 @@ export type GamePhase = 'vessel_select' | 'playing' | 'draft' | 'paused' | 'game
 
 export interface DraftOption {
   card: UpgradeCardDef;
-  targetSkillId?: string; // for support cards
+  targetArtId?: string;
   dpsDeltaPct?: number;
   summaryText: string;
 }
@@ -53,7 +54,6 @@ export class HollowWarEngine {
   sheet: StatSheet = new StatSheet(HOLLOW_WAR_STAT_RULES);
   procs: ProcRuntime = new ProcRuntime();
 
-  // Player state
   player = {
     x: 0,
     y: 0,
@@ -82,13 +82,14 @@ export class HollowWarEngine {
   totalDamageDealt = 0;
   screenShake = 0;
 
-  skills: EquippedSkill[] = [];
+  arts: EquippedArt[] = [];
   acquiredCards: Map<string, number> = new Map();
 
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
   arcs: LightningArc[] = [];
   novas: NovaRing[] = [];
+  sweeps: SweepArc[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -97,6 +98,7 @@ export class HollowWarEngine {
 
   private spawnTimer = 0;
   private nextBossAt = 60;
+  private bossCount = 0;
   private dotAccumulator = 0;
   private viewportW = 1280;
   private viewportH = 720;
@@ -131,9 +133,9 @@ export class HollowWarEngine {
       for (const p of found.procs) this.procs.register(p);
     }
 
-    this.skills = [];
+    this.arts = [];
     this.acquiredCards.clear();
-    this.addOrRankSkill(found.startingSkillId);
+    this.addOrRankArt(found.startingArtId);
 
     this.updateConditions(false);
     const maxLife = this.sheet.get('life');
@@ -166,6 +168,7 @@ export class HollowWarEngine {
     this.projectiles = [];
     this.arcs = [];
     this.novas = [];
+    this.sweeps = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -177,12 +180,14 @@ export class HollowWarEngine {
     this.screenShake = 0;
     this.spawnTimer = 0.2;
     this.nextBossAt = 60;
+    this.bossCount = 0;
     this.dotAccumulator = 0;
 
-    // Spawn an initial small ring of thralls so action starts within 1 second
+    // Opening pack of Risen Ghouls & Ash Imps
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2;
-      this.enemies.push(createEnemy('thrall', Math.cos(angle) * 340, Math.sin(angle) * 340, 0));
+      const arch = i % 2 === 0 ? 'ghoul' : 'imp';
+      this.enemies.push(createEnemy(arch, Math.cos(angle) * 340, Math.sin(angle) * 340, 0));
     }
 
     this.setPhase('playing');
@@ -220,18 +225,18 @@ export class HollowWarEngine {
     );
   }
 
-  addOrRankSkill(skillId: string): EquippedSkill {
-    const existing = this.skills.find((s) => s.skillId === skillId);
+  addOrRankArt(artId: string): EquippedArt {
+    const existing = this.arts.find((a) => a.artId === artId);
     if (existing) {
       existing.level += 1;
       return existing;
     }
-    const inst: EquippedSkill = {
-      skillId,
+    const inst: EquippedArt = {
+      artId,
       level: 1,
       cooldownTimer: 0.1,
-      supports: [],
-      getSkillMods() {
+      inscriptions: [],
+      getArtMods() {
         const mods: Modifier[] = [];
         if (this.level > 1) {
           mods.push({
@@ -240,35 +245,39 @@ export class HollowWarEngine {
             value: (this.level - 1) * 0.22,
             source: `Rank ${this.level}`,
           });
-          if (this.skillId === 'arc_lash') {
+          if (this.artId === 'chain_lightning') {
             mods.push({ stat: 'chainCount', kind: 'flat', value: this.level - 1 });
-          } else if (this.skillId === 'void_glaive' || this.skillId === 'frost_shard') {
+          } else if (this.artId === 'hammer_of_judgment' || this.artId === 'fan_of_blades') {
             mods.push({ stat: 'projectileCount', kind: 'flat', value: this.level - 1 });
-          } else if (this.skillId === 'ruin_nova') {
+          } else if (
+            this.artId === 'cleave' ||
+            this.artId === 'poison_nova' ||
+            this.artId === 'frost_nova'
+          ) {
             mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
           }
         }
-        for (const sup of this.supports) {
-          mods.push(...sup.mods);
+        for (const ins of this.inscriptions) {
+          mods.push(...ins.mods);
         }
         return mods;
       },
     };
-    this.skills.push(inst);
+    this.arts.push(inst);
     return inst;
   }
 
-  getSkillExtraMods(skill: EquippedSkill): Modifier[] {
-    return skill.getSkillMods();
+  getArtExtraMods(art: EquippedArt): Modifier[] {
+    return art.getArtMods();
   }
 
-  getSkillPreview(skill: EquippedSkill): SkillDpsPreview {
-    const def = SKILLS[skill.skillId];
-    return previewSkillDps(this.sheet, def, this.getSkillExtraMods(skill), def.baseProjectiles);
+  getArtPreview(art: EquippedArt): SkillDpsPreview {
+    const def = ARTS[art.artId];
+    return previewSkillDps(this.sheet, def, this.getArtExtraMods(art), def.baseProjectiles);
   }
 
   getTotalEstimatedDps(): number {
-    return this.skills.reduce((sum, s) => sum + this.getSkillPreview(s).estimatedDps, 0);
+    return this.arts.reduce((sum, a) => sum + this.getArtPreview(a).estimatedDps, 0);
   }
 
   update(rawDt: number): void {
@@ -279,7 +288,7 @@ export class HollowWarEngine {
 
     this.updatePlayer(dt);
     this.updateConditions(Math.hypot(this.player.vx, this.player.vy) > 15);
-    this.updateSkills(dt);
+    this.updateArts(dt);
     this.updateProjectiles(dt);
     this.updateEnemies(dt);
     this.updateAilments(dt);
@@ -300,115 +309,56 @@ export class HollowWarEngine {
     this.sheet.setConditions(conds);
   }
 
-  private updatePlayer(dt: number): void {
-    const maxLife = this.sheet.get('life');
-    const maxWard = this.sheet.get('ward');
-
-    // Clamp & regen
-    this.player.life = Math.min(maxLife, this.player.life + this.sheet.get('lifeRegen') * dt);
-    if (this.player.wardDelayTimer > 0) {
-      this.player.wardDelayTimer -= dt;
-    } else if (maxWard > 0 && this.player.ward < maxWard) {
-      this.player.ward = Math.min(maxWard, this.player.ward + this.sheet.get('wardRegen') * dt);
-    }
-
-    if (this.player.invulnTimer > 0) this.player.invulnTimer -= dt;
-    if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
-
-    if (this.player.dashTimer > 0) {
-      this.player.dashTimer -= dt;
-      const dashSpeed = this.sheet.get('moveSpeed') * 3.1;
-      this.player.vx = this.player.dashDirX * dashSpeed;
-      this.player.vy = this.player.dashDirY * dashSpeed;
-    } else {
-      let mx = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
-      let my = (this.input.down ? 1 : 0) - (this.input.up ? 1 : 0);
-      if (mx !== 0 || my !== 0) {
-        const len = Math.hypot(mx, my);
-        mx /= len;
-        my /= len;
-      }
-      const speed = this.sheet.get('moveSpeed');
-      this.player.vx = mx * speed;
-      this.player.vy = my * speed;
-    }
-
-    this.player.x += this.player.vx * dt;
-    this.player.y += this.player.vy * dt;
-    this.player.orbitAngle += dt * 3.1;
-
-    // Aiming
-    if (this.autoAim && this.enemies.length > 0) {
-      let nearest: Enemy | null = null;
-      let bestDist = Infinity;
-      for (const e of this.enemies) {
-        const d = (e.x - this.player.x) ** 2 + (e.y - this.player.y) ** 2;
-        if (d < bestDist) {
-          bestDist = d;
-          nearest = e;
-        }
-      }
-      if (nearest) {
-        this.player.aimAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
-      }
-    } else {
-      const worldMouseX = this.player.x + (this.input.mouseX - this.viewportW / 2);
-      const worldMouseY = this.player.y + (this.input.mouseY - this.viewportH / 2);
-      this.player.aimAngle = Math.atan2(worldMouseY - this.player.y, worldMouseX - this.player.x);
-    }
-  }
-
-  private updateSkills(dt: number): void {
-    for (const skill of this.skills) {
-      const def = SKILLS[skill.skillId];
+  private updateArts(dt: number): void {
+    for (const art of this.arts) {
+      const def = ARTS[art.artId];
       if (!def) continue;
 
       if (def.behavior === 'orbit') {
-        this.updateOrbitSkill(skill, def);
+        this.updateOrbitArt(art, def);
         continue;
       }
 
-      skill.cooldownTimer -= dt;
-      if (skill.cooldownTimer <= 0) {
-        const extraMods = this.getSkillExtraMods(skill);
+      art.cooldownTimer -= dt;
+      if (art.cooldownTimer <= 0) {
+        const extraMods = this.getArtExtraMods(art);
         const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
         const speed = Math.max(0.15, this.sheet.get(speedStat, def.tags, extraMods));
         const cdr = Math.max(0.25, this.sheet.get('cooldownRecovery', def.tags, extraMods));
-        skill.cooldownTimer = Math.max(0.08, def.baseCooldown / (speed * cdr));
+        art.cooldownTimer = Math.max(0.08, def.baseCooldown / (speed * cdr));
 
-        this.castSkill(skill, def, extraMods);
+        this.castArt(art, def, extraMods);
 
-        // Echo Support check
-        const echoSupport = skill.supports.find((s) => s.echoChance);
-        if (echoSupport?.echoChance && Math.random() < echoSupport.echoChance) {
-          this.castSkill(skill, def, extraMods);
+        const echoIns = art.inscriptions.find((s) => s.echoChance);
+        if (echoIns?.echoChance && Math.random() < echoIns.echoChance) {
+          this.castArt(art, def, extraMods);
         }
       }
     }
   }
 
-  private updateOrbitSkill(skill: EquippedSkill, def: SkillDefinition): void {
-    const extraMods = this.getSkillExtraMods(skill);
-    const bladeCount = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+  private updateOrbitArt(art: EquippedArt, def: ArtDefinition): void {
+    const extraMods = this.getArtExtraMods(art);
+    const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
     const orbitRadius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
 
-    for (let i = 0; i < bladeCount; i++) {
-      const angle = this.player.orbitAngle + (i / bladeCount) * Math.PI * 2;
+    for (let i = 0; i < count; i++) {
+      const angle = this.player.orbitAngle + (i / count) * Math.PI * 2;
       const bx = this.player.x + Math.cos(angle) * orbitRadius;
       const by = this.player.y + Math.sin(angle) * orbitRadius;
 
       for (const e of this.enemies) {
         if (e.life <= 0 || e.orbitHitCooldown > 0) continue;
         const dist = Math.hypot(e.x - bx, e.y - by);
-        if (dist <= e.radius + 16) {
+        if (dist <= e.radius + 17) {
           e.orbitHitCooldown = def.baseCooldown / Math.max(0.3, this.sheet.get('attackSpeed', def.tags, extraMods));
-          this.applySkillHit(e, def, extraMods, skill);
+          this.applyArtHit(e, def, extraMods, art);
         }
       }
     }
   }
 
-  private castSkill(skill: EquippedSkill, def: SkillDefinition, extraMods: Modifier[]): void {
+  private castArt(art: EquippedArt, def: ArtDefinition, extraMods: Modifier[]): void {
     if (def.behavior === 'projectile') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
       const pierce = Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
@@ -427,7 +377,7 @@ export class HollowWarEngine {
           vy: Math.sin(a) * speed,
           radius: def.baseRadius * Math.sqrt(areaScale),
           color: def.color,
-          skillId: def.id,
+          artId: def.id,
           pierceLeft: pierce,
           life: 1.8,
           hitIds: new Set(),
@@ -437,7 +387,7 @@ export class HollowWarEngine {
     } else if (def.behavior === 'chain') {
       const range = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
       const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
-      this.castChainLightning(this.player.x, this.player.y, range, chains, def, extraMods, skill);
+      this.castChainLightning(this.player.x, this.player.y, range, chains, def, extraMods, art);
     } else if (def.behavior === 'nova') {
       const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
       this.novas.push({
@@ -452,7 +402,34 @@ export class HollowWarEngine {
       for (const e of this.enemies) {
         if (e.life <= 0) continue;
         if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= radius + e.radius) {
-          this.applySkillHit(e, def, extraMods, skill);
+          this.applyArtHit(e, def, extraMods, art);
+        }
+      }
+    } else if (def.behavior === 'sweep') {
+      const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+      const arcSpread = Math.PI * 0.78;
+      this.sweeps.push({
+        x: this.player.x,
+        y: this.player.y,
+        angle: this.player.aimAngle,
+        radius,
+        arcSpread,
+        color: def.color,
+        life: 0.2,
+        maxLife: 0.2,
+      });
+      for (const e of this.enemies) {
+        if (e.life <= 0) continue;
+        const dx = e.x - this.player.x;
+        const dy = e.y - this.player.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= radius + e.radius) {
+          let diff = Math.atan2(dy, dx) - this.player.aimAngle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          if (Math.abs(diff) <= arcSpread / 2 + 0.25) {
+            this.applyArtHit(e, def, extraMods, art);
+          }
         }
       }
     }
@@ -465,7 +442,7 @@ export class HollowWarEngine {
     maxTargets: number,
     def: SkillDamageSpec,
     extraMods: Modifier[],
-    skill?: EquippedSkill,
+    art?: EquippedArt,
   ): void {
     const hitSet = new Set<number>();
     const points: Array<{ x: number; y: number }> = [{ x: startX, y: startY }];
@@ -486,7 +463,7 @@ export class HollowWarEngine {
       if (!best) break;
       hitSet.add(best.id);
       points.push({ x: best.x, y: best.y });
-      this.applySkillHit(best, def, extraMods, skill);
+      this.applyArtHit(best, def, extraMods, art);
       cx = best.x;
       cy = best.y;
     }
@@ -496,11 +473,11 @@ export class HollowWarEngine {
     }
   }
 
-  private applySkillHit(
+  private applyArtHit(
     enemy: Enemy,
     spec: SkillDamageSpec,
     extraMods: Modifier[],
-    skill?: EquippedSkill,
+    art?: EquippedArt,
     procDepth = 0,
   ): void {
     if (enemy.life <= 0) return;
@@ -518,12 +495,11 @@ export class HollowWarEngine {
       extraMods,
     );
 
-    // Apply support conversions/extras if present on this skill
     let total = receipt.totalDamage;
-    if (skill) {
-      for (const sup of skill.supports) {
-        if (sup.extras) {
-          for (const ex of sup.extras) {
+    if (art) {
+      for (const ins of art.inscriptions) {
+        if (ins.extras) {
+          for (const ex of ins.extras) {
             total += (receipt.byType[ex.from] ?? 0) * ex.ratio;
           }
         }
@@ -534,14 +510,12 @@ export class HollowWarEngine {
     enemy.hitFlash = 0.1;
     this.totalDamageDealt += total;
 
-    // Life Leech
     const leech = this.sheet.get('lifeLeech', spec.tags, extraMods);
     if (leech > 0) {
       const maxLife = this.sheet.get('life');
       this.player.life = Math.min(maxLife, this.player.life + total * leech);
     }
 
-    // Dominant damage color for floating text
     let dominant: DamageType = 'physical';
     let maxVal = -1;
     for (const [k, v] of Object.entries(receipt.byType) as Array<[DamageType, number]>) {
@@ -562,7 +536,6 @@ export class HollowWarEngine {
       scale: receipt.isCrit ? 1.25 : 0.95,
     });
 
-    // Apply Ailments
     const dotMult = this.sheet.get('dotDamage', spec.tags, extraMods);
     for (const ail of receipt.appliedAilments) {
       if (ail === 'ignite') {
@@ -573,7 +546,7 @@ export class HollowWarEngine {
         this.applyAilment(enemy, 'bleed', dps, 3.2);
       } else if (ail === 'poison') {
         const dps = Math.max(3, (receipt.byType.chaos + receipt.byType.physical * 0.3) * 0.32 * dotMult);
-        enemy.ailments.push({ type: 'poison', dps, remaining: 3.5, maxDuration: 3.5 }); // Poison stacks!
+        enemy.ailments.push({ type: 'poison', dps, remaining: 3.5, maxDuration: 3.5 });
       } else if (ail === 'chill') {
         this.applyAilment(enemy, 'chill', 0, 2.5);
       } else if (ail === 'shock') {
@@ -581,7 +554,6 @@ export class HollowWarEngine {
       }
     }
 
-    // Procs
     this.procs.emit(
       'onHit',
       this.elapsed,
@@ -636,7 +608,7 @@ export class HollowWarEngine {
       for (const e of this.enemies) {
         if (e.life <= 0) continue;
         if (Math.hypot(e.x - ctx.x, e.y - ctx.y) <= radius + e.radius) {
-          this.applySkillHit(e, procSpec, [], undefined, depth);
+          this.applyArtHit(e, procSpec, [], undefined, depth);
         }
       }
     } else if (spec.effectId === 'arc_discharge') {
@@ -657,7 +629,7 @@ export class HollowWarEngine {
         vy: Math.sin(angle) * 560,
         radius: 6,
         color: isFire ? '#f97316' : '#c084fc',
-        skillId: isFire ? 'firebolt' : 'void_glaive',
+        artId: isFire ? 'firebolt' : 'fan_of_blades',
         pierceLeft: 0,
         life: 1.2,
         hitIds: new Set(),
@@ -668,9 +640,8 @@ export class HollowWarEngine {
 
   private handleEnemyDeath(enemy: Enemy, procDepth: number): void {
     this.kills += 1;
-    this.spawnParticles(enemy.x, enemy.y, enemy.color, enemy.archetype === 'boss' ? 28 : 9, 160);
+    this.spawnParticles(enemy.x, enemy.y, enemy.color, enemy.isBoss ? 28 : 9, 160);
 
-    // Sustain on Kill
     const maxLife = this.sheet.get('life');
     const maxWard = this.sheet.get('ward');
     const lifeOnKill = this.sheet.get('lifeOnKill');
@@ -678,15 +649,14 @@ export class HollowWarEngine {
     if (lifeOnKill > 0) this.player.life = Math.min(maxLife, this.player.life + lifeOnKill);
     if (wardOnKill > 0 && maxWard > 0) this.player.ward = Math.min(maxWard, this.player.ward + wardOnKill);
 
-    // Drop XP & occasional Life/Ward orb
     this.pickups.push({
       id: nextEntityId++,
       kind: 'xp',
       x: enemy.x,
       y: enemy.y,
       value: enemy.xpValue,
-      color: enemy.archetype === 'boss' ? '#fbbf24' : '#38bdf8',
-      radius: enemy.archetype === 'boss' ? 8 : 5,
+      color: enemy.isBoss ? '#fbbf24' : '#38bdf8',
+      radius: enemy.isBoss ? 8 : 5,
       magnetized: false,
     });
 
@@ -751,8 +721,8 @@ export class HollowWarEngine {
         continue;
       }
 
-      const skill = this.skills.find((s) => s.skillId === p.skillId);
-      const def = SKILLS[p.skillId];
+      const art = this.arts.find((a) => a.artId === p.artId);
+      const def = ARTS[p.artId];
       if (!def) continue;
 
       let removed = false;
@@ -760,7 +730,7 @@ export class HollowWarEngine {
         if (e.life <= 0 || p.hitIds.has(e.id)) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= p.radius + e.radius) {
           p.hitIds.add(e.id);
-          this.applySkillHit(e, def, p.extraMods ?? (skill ? this.getSkillExtraMods(skill) : []), skill);
+          this.applyArtHit(e, def, p.extraMods ?? (art ? this.getArtExtraMods(art) : []), art);
           if (p.pierceLeft > 0) {
             p.pierceLeft -= 1;
           } else {
@@ -771,6 +741,62 @@ export class HollowWarEngine {
         }
       }
       if (removed) continue;
+    }
+  }
+
+  private updatePlayer(dt: number): void {
+    const maxLife = this.sheet.get('life');
+    const maxWard = this.sheet.get('ward');
+
+    this.player.life = Math.min(maxLife, this.player.life + this.sheet.get('lifeRegen') * dt);
+    if (this.player.wardDelayTimer > 0) {
+      this.player.wardDelayTimer -= dt;
+    } else if (maxWard > 0 && this.player.ward < maxWard) {
+      this.player.ward = Math.min(maxWard, this.player.ward + this.sheet.get('wardRegen') * dt);
+    }
+
+    if (this.player.invulnTimer > 0) this.player.invulnTimer -= dt;
+    if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
+
+    if (this.player.dashTimer > 0) {
+      this.player.dashTimer -= dt;
+      const dashSpeed = this.sheet.get('moveSpeed') * 3.1;
+      this.player.vx = this.player.dashDirX * dashSpeed;
+      this.player.vy = this.player.dashDirY * dashSpeed;
+    } else {
+      let mx = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
+      let my = (this.input.down ? 1 : 0) - (this.input.up ? 1 : 0);
+      if (mx !== 0 || my !== 0) {
+        const len = Math.hypot(mx, my);
+        mx /= len;
+        my /= len;
+      }
+      const speed = this.sheet.get('moveSpeed');
+      this.player.vx = mx * speed;
+      this.player.vy = my * speed;
+    }
+
+    this.player.x += this.player.vx * dt;
+    this.player.y += this.player.vy * dt;
+    this.player.orbitAngle += dt * 3.1;
+
+    if (this.autoAim && this.enemies.length > 0) {
+      let nearest: Enemy | null = null;
+      let bestDist = Infinity;
+      for (const e of this.enemies) {
+        const d = (e.x - this.player.x) ** 2 + (e.y - this.player.y) ** 2;
+        if (d < bestDist) {
+          bestDist = d;
+          nearest = e;
+        }
+      }
+      if (nearest) {
+        this.player.aimAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
+      }
+    } else {
+      const worldMouseX = this.player.x + (this.input.mouseX - this.viewportW / 2);
+      const worldMouseY = this.player.y + (this.input.mouseY - this.viewportH / 2);
+      this.player.aimAngle = Math.atan2(worldMouseY - this.player.y, worldMouseX - this.player.x);
     }
   }
 
@@ -791,8 +817,9 @@ export class HollowWarEngine {
       const dx = this.player.x - e.x;
       const dy = this.player.y - e.y;
       const dist = Math.max(1, Math.hypot(dx, dy));
+      e.facing = Math.atan2(dy, dx);
 
-      if (e.archetype === 'weaver' && dist < 240) {
+      if (e.archetype === 'skeleton_archer' && dist < 245) {
         e.vx = 0;
         e.vy = 0;
       } else {
@@ -803,24 +830,23 @@ export class HollowWarEngine {
       e.x += e.vx * dt;
       e.y += e.vy * dt;
 
-      // Ranged weaver / boss projectile
-      if (e.archetype === 'weaver' || e.archetype === 'boss') {
+      if (e.archetype === 'skeleton_archer' || e.isBoss) {
         e.abilityTimer -= dt;
-        if (e.abilityTimer <= 0 && dist < 480) {
-          e.abilityTimer = e.archetype === 'boss' ? 2.4 : 2.8;
+        if (e.abilityTimer <= 0 && dist < 500) {
+          e.abilityTimer = e.isBoss ? 2.3 : 2.6;
           const baseAngle = Math.atan2(dy, dx);
-          const bolts = e.archetype === 'boss' ? 5 : 1;
+          const bolts = e.isBoss ? 5 : 1;
           for (let b = 0; b < bolts; b++) {
             const a = baseAngle + (b - (bolts - 1) / 2) * 0.24;
             this.projectiles.push({
               id: nextEntityId++,
               x: e.x,
               y: e.y,
-              vx: Math.cos(a) * 240,
-              vy: Math.sin(a) * 240,
-              radius: 6,
-              color: '#e879f9',
-              skillId: '',
+              vx: Math.cos(a) * 245,
+              vy: Math.sin(a) * 245,
+              radius: e.isBoss ? 7 : 5.5,
+              color: e.faction === 'demon' ? '#f97316' : '#c084fc',
+              artId: '',
               pierceLeft: 0,
               life: 2.5,
               hitIds: new Set(),
@@ -831,7 +857,6 @@ export class HollowWarEngine {
         }
       }
 
-      // Contact damage
       if (dist <= e.radius + this.player.radius) {
         this.damagePlayer(e.damage);
       }
@@ -972,9 +997,11 @@ export class HollowWarEngine {
 
     if (this.elapsed >= this.nextBossAt) {
       this.nextBossAt += 60;
+      this.bossCount += 1;
+      const bossArch = this.bossCount % 2 === 1 ? 'lich' : 'demon_lord';
       const angle = Math.random() * Math.PI * 2;
       this.enemies.push(
-        createEnemy('boss', this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
+        createEnemy(bossArch, this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
       );
     }
   }
@@ -989,6 +1016,10 @@ export class HollowWarEngine {
       n.life -= dt;
       n.radius = n.maxRadius * (1 - n.life / n.maxLife);
       if (n.life <= 0) this.novas.splice(i, 1);
+    }
+    for (let i = this.sweeps.length - 1; i >= 0; i--) {
+      this.sweeps[i].life -= dt;
+      if (this.sweeps[i].life <= 0) this.sweeps.splice(i, 1);
     }
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
@@ -1035,41 +1066,39 @@ export class HollowWarEngine {
   }
 
   private rollDraftOptions(count: number): DraftOption[] {
-    const eligible: Array<{ card: UpgradeCardDef; targetSkillId?: string }> = [];
+    const eligible: Array<{ card: UpgradeCardDef; targetArtId?: string }> = [];
 
     for (const card of UPGRADE_POOL) {
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
 
-      if (card.category === 'support' && card.supportId) {
-        const sup = SUPPORT_SOCKETS[card.supportId];
-        if (!sup) continue;
-        // Find equipped skills compatible with this support that don't already have it
-        const compatible = this.skills.filter((sk) => {
-          const def = SKILLS[sk.skillId];
+      if (card.category === 'inscription' && card.inscriptionId) {
+        const ins = INSCRIPTIONS[card.inscriptionId];
+        if (!ins) continue;
+        const compatible = this.arts.filter((ar) => {
+          const def = ARTS[ar.artId];
           if (!def) return false;
-          if (sk.supports.some((s) => s.id === sup.id)) return false;
-          if (sup.requiredTags && !sup.requiredTags.every((t) => def.tags.includes(t))) return false;
+          if (ar.inscriptions.some((i) => i.id === ins.id)) return false;
+          if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
           return true;
         });
         if (compatible.length === 0) continue;
         const chosen = compatible[Math.floor(Math.random() * compatible.length)];
-        eligible.push({ card, targetSkillId: chosen.skillId });
+        eligible.push({ card, targetArtId: chosen.artId });
       } else {
         eligible.push({ card });
       }
     }
 
-    // Shuffle and pick `count`
     for (let i = eligible.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
     }
 
-    return eligible.slice(0, count).map(({ card, targetSkillId }) => this.buildDraftOption(card, targetSkillId));
+    return eligible.slice(0, count).map(({ card, targetArtId }) => this.buildDraftOption(card, targetArtId));
   }
 
-  private buildDraftOption(card: UpgradeCardDef, targetSkillId?: string): DraftOption {
+  private buildDraftOption(card: UpgradeCardDef, targetArtId?: string): DraftOption {
     const beforeDps = this.getTotalEstimatedDps();
     const forked = this.sheet.fork();
 
@@ -1078,35 +1107,39 @@ export class HollowWarEngine {
     if (card.extras) forked.setExtras(`preview_${card.id}`, card.extras);
 
     let afterDps = 0;
-    for (const sk of this.skills) {
-      const def = SKILLS[sk.skillId];
-      const extraMods = [...this.getSkillExtraMods(sk)];
-      if (card.category === 'skill' && card.skillId === sk.skillId) {
+    for (const ar of this.arts) {
+      const def = ARTS[ar.artId];
+      const extraMods = [...this.getArtExtraMods(ar)];
+      if (card.category === 'art' && card.artId === ar.artId) {
         extraMods.push({ stat: 'damage', kind: 'more', value: 0.22 });
-      } else if (card.category === 'support' && card.supportId && targetSkillId === sk.skillId) {
-        const sup = SUPPORT_SOCKETS[card.supportId];
-        if (sup) extraMods.push(...sup.mods);
+      } else if (card.category === 'inscription' && card.inscriptionId && targetArtId === ar.artId) {
+        const ins = INSCRIPTIONS[card.inscriptionId];
+        if (ins) extraMods.push(...ins.mods);
       }
       afterDps += previewSkillDps(forked, def, extraMods, def.baseProjectiles).estimatedDps;
     }
 
-    if (card.category === 'skill' && card.skillId && !this.skills.some((s) => s.skillId === card.skillId)) {
-      const def = SKILLS[card.skillId];
+    if (card.category === 'art' && card.artId && !this.arts.some((a) => a.artId === card.artId)) {
+      const def = ARTS[card.artId];
       afterDps += previewSkillDps(forked, def, [], def.baseProjectiles).estimatedDps;
     }
 
     const dpsDeltaPct = beforeDps > 0 ? ((afterDps - beforeDps) / beforeDps) * 100 : 0;
-    const targetName = targetSkillId ? SKILLS[targetSkillId]?.name : undefined;
-    const summaryText = targetName ? `Socket into ${targetName}` : card.category.toUpperCase();
+    const targetName = targetArtId ? ARTS[targetArtId]?.name : undefined;
+    const summaryText = targetName
+      ? `Inscribe onto ${targetName}`
+      : card.category === 'oath'
+        ? 'Keystone Oath'
+        : card.category.toUpperCase();
 
-    return { card, targetSkillId, dpsDeltaPct, summaryText };
+    return { card, targetArtId, dpsDeltaPct, summaryText };
   }
 
   pickDraftOption(index: number): void {
     const opt = this.draftOptions[index];
     if (!opt) return;
 
-    const { card, targetSkillId } = opt;
+    const { card, targetArtId } = opt;
     const stacks = (this.acquiredCards.get(card.id) ?? 0) + 1;
     this.acquiredCards.set(card.id, stacks);
 
@@ -1118,17 +1151,16 @@ export class HollowWarEngine {
       for (const p of card.procs) this.procs.register(p);
     }
 
-    if (card.category === 'skill' && card.skillId) {
-      this.addOrRankSkill(card.skillId);
-    } else if (card.category === 'support' && card.supportId && targetSkillId) {
-      const target = this.skills.find((s) => s.skillId === targetSkillId);
-      const sup = SUPPORT_SOCKETS[card.supportId];
-      if (target && sup) {
-        target.supports.push(sup);
+    if (card.category === 'art' && card.artId) {
+      this.addOrRankArt(card.artId);
+    } else if (card.category === 'inscription' && card.inscriptionId && targetArtId) {
+      const target = this.arts.find((a) => a.artId === targetArtId);
+      const ins = INSCRIPTIONS[card.inscriptionId];
+      if (target && ins) {
+        target.inscriptions.push(ins);
       }
     }
 
-    // Re-clamp vitals
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
 

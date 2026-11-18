@@ -1,7 +1,7 @@
 import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec, SkillTag } from '../sdk/types.ts';
 
-export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'keystone';
-export type UpgradeCategory = 'skill' | 'support' | 'passive' | 'keystone';
+export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'oath';
+export type UpgradeCategory = 'art' | 'inscription' | 'doctrine' | 'oath';
 
 export interface UpgradeCardDef {
   id: string;
@@ -11,149 +11,167 @@ export interface UpgradeCardDef {
   description: string;
   tags: readonly SkillTag[];
   maxStacks?: number;
-  /** For category === 'skill' */
-  skillId?: string;
-  /** For category === 'support' */
-  supportId?: string;
+  /** For category === 'art' */
+  artId?: string;
+  /** For category === 'inscription' */
+  inscriptionId?: string;
   /** Modifiers applied to the player StatSheet */
   mods?: Modifier[];
   conversions?: ConversionRule[];
   extras?: ExtraDamageRule[];
   procs?: ProcSpec[];
-  /** Optional trade-off note shown on keystones */
+  /** Optional trade-off note shown on Keystone Oaths */
   tradeoff?: string;
 }
 
 export const UPGRADE_POOL: UpgradeCardDef[] = [
-  // === SKILLS (Acquire or Level Up +20% More Damage) ===
+  // === ARTS (Acquire a new Art or deepen its mastery for +22% More Damage) ===
   {
-    id: 'skill_firebolt',
-    name: 'Firebolt Volley',
-    category: 'skill',
+    id: 'art_firebolt',
+    name: 'Art: Firebolt',
+    category: 'art',
     rarity: 'rare',
-    skillId: 'firebolt',
-    description: 'Equip Firebolt Volley (or rank it up for +22% More Skill Damage).',
+    artId: 'firebolt',
+    description: 'Master Firebolt (or deepen its rank for +22% More Art Damage).',
     tags: ['spell', 'projectile', 'fire'],
   },
   {
-    id: 'skill_arc_lash',
-    name: 'Arc Lash',
-    category: 'skill',
+    id: 'art_cleave',
+    name: 'Art: Cleave',
+    category: 'art',
     rarity: 'rare',
-    skillId: 'arc_lash',
-    description: 'Equip Arc Lash (or rank it up for +22% More Skill Damage & +1 Chain).',
+    artId: 'cleave',
+    description: 'Master Cleave (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['attack', 'aoe', 'physical'],
+  },
+  {
+    id: 'art_fan_of_blades',
+    name: 'Art: Fan of Blades',
+    category: 'art',
+    rarity: 'rare',
+    artId: 'fan_of_blades',
+    description: 'Master Fan of Blades (or deepen its rank for +1 Dagger & +22% More Art Damage).',
+    tags: ['attack', 'projectile', 'physical'],
+  },
+  {
+    id: 'art_poison_nova',
+    name: 'Art: Poison Nova',
+    category: 'art',
+    rarity: 'rare',
+    artId: 'poison_nova',
+    description: 'Master Poison Nova (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['spell', 'aoe', 'nova', 'chaos'],
+  },
+  {
+    id: 'art_chain_lightning',
+    name: 'Art: Chain Lightning',
+    category: 'art',
+    rarity: 'rare',
+    artId: 'chain_lightning',
+    description: 'Master Chain Lightning (or deepen its rank for +1 Chain & +22% More Art Damage).',
     tags: ['spell', 'chain', 'lightning'],
   },
   {
-    id: 'skill_void_glaive',
-    name: 'Void Glaive',
-    category: 'skill',
+    id: 'art_hammer_of_judgment',
+    name: 'Art: Hammer of Judgment',
+    category: 'art',
     rarity: 'rare',
-    skillId: 'void_glaive',
-    description: 'Equip Void Glaive (or rank it up for +1 Orbiting Blade & +20% More Damage).',
-    tags: ['attack', 'orbit', 'physical', 'chaos'],
+    artId: 'hammer_of_judgment',
+    description: 'Master Hammer of Judgment (or add +1 Orbiting Hammer & +22% More Art Damage).',
+    tags: ['attack', 'orbit', 'physical', 'fire'],
   },
   {
-    id: 'skill_ruin_nova',
-    name: 'Ruin Nova',
-    category: 'skill',
+    id: 'art_frost_nova',
+    name: 'Art: Frost Nova',
+    category: 'art',
     rarity: 'rare',
-    skillId: 'ruin_nova',
-    description: 'Equip Ruin Nova (or rank it up for +24% More Damage & +12% Area).',
-    tags: ['spell', 'aoe', 'nova', 'fire', 'physical'],
-  },
-  {
-    id: 'skill_frost_shard',
-    name: 'Frost Shard',
-    category: 'skill',
-    rarity: 'rare',
-    skillId: 'frost_shard',
-    description: 'Equip Frost Shard (or rank it up for +22% More Damage & +1 Shard).',
-    tags: ['spell', 'projectile', 'cold'],
+    artId: 'frost_nova',
+    description: 'Master Frost Nova (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['spell', 'aoe', 'nova', 'cold'],
   },
 
-  // === SUPPORT SOCKETS (Attach to a specific equipped skill!) ===
+  // === INSCRIPTIONS (Bind directly onto a compatible Art) ===
   {
-    id: 'sup_multishot',
-    name: 'Support: Split Volley',
-    category: 'support',
+    id: 'ins_split_volley',
+    name: 'Inscription of Split Volley',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'multishot',
-    description: 'Socket into a Projectile skill: +2 Projectiles, -15% Projectile Damage.',
+    inscriptionId: 'split_volley',
+    description: 'Etch onto a Projectile Art: +2 Projectiles, at the cost of 15% Less Projectile Damage.',
     tags: ['projectile'],
   },
   {
-    id: 'sup_combustion',
-    name: 'Support: Combustion',
-    category: 'support',
+    id: 'ins_combustion',
+    name: 'Inscription of Combustion',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'combustion',
-    description: 'Socket into any skill: +45% Ignite Chance, +25% More Fire Damage, +10% Fire Pen.',
+    inscriptionId: 'combustion',
+    description: 'Etch onto any Art: +45% Ignite Chance, +25% More Fire Damage, +10% Fire Penetration.',
     tags: ['fire', 'dot'],
   },
   {
-    id: 'sup_chain_arc',
-    name: 'Support: Forking Arc',
-    category: 'support',
+    id: 'ins_forking_arc',
+    name: 'Inscription of Forking Arc',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'chain_arc',
-    description: 'Socket into a Chain skill: +2 Chain Count, +15% Lightning Penetration.',
+    inscriptionId: 'forking_arc',
+    description: 'Etch onto a Chain Art: +2 Chain Count and +15% Lightning Penetration.',
     tags: ['chain', 'lightning'],
   },
   {
-    id: 'sup_chaos_infusion',
-    name: 'Support: Void Infusion',
-    category: 'support',
+    id: 'ins_void_infusion',
+    name: 'Inscription of Void Infusion',
+    category: 'inscription',
     rarity: 'mythic',
-    supportId: 'chaos_infusion',
-    description: 'Socket into any skill: Gain 25% of Physical & Elemental Damage as Extra Chaos.',
+    inscriptionId: 'void_infusion',
+    description: 'Etch onto any Art: Gain 25% of Physical & Elemental Damage as Extra Chaos.',
     tags: ['chaos'],
   },
   {
-    id: 'sup_concentrated',
-    name: 'Support: Concentrated Core',
-    category: 'support',
+    id: 'ins_concentrated_core',
+    name: 'Inscription of Concentrated Core',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'concentrated_blast',
-    description: 'Socket into an Area skill: +35% More Area Damage, -15% Area.',
+    inscriptionId: 'concentrated_core',
+    description: 'Etch onto an Area Art: +35% More Area Damage, -15% Area of Effect.',
     tags: ['aoe'],
   },
   {
-    id: 'sup_echo',
-    name: 'Support: Spell Echo',
-    category: 'support',
+    id: 'ins_spell_echo',
+    name: 'Inscription of Spell Echo',
+    category: 'inscription',
     rarity: 'mythic',
-    supportId: 'echo_chamber',
-    description: 'Socket into a Spell: 40% chance to Echo cast immediately, +12% Cast Speed.',
+    inscriptionId: 'spell_echo',
+    description: 'Etch onto a Spell Art: 40% chance to Echo immediately, +12% Cast Speed.',
     tags: ['spell'],
   },
   {
-    id: 'sup_vampiric',
-    name: 'Support: Crimson Leech',
-    category: 'support',
+    id: 'ins_crimson_leech',
+    name: 'Inscription of Crimson Leech',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'vampiric_edge',
-    description: 'Socket into any skill: +4% Life Leech, +20% Bleed Chance, +18% More Damage on Full Life.',
+    inscriptionId: 'crimson_leech',
+    description: 'Etch onto any Art: +4% Life Leech, +20% Bleed Chance, +18% More Damage on Full Life.',
     tags: ['physical'],
   },
   {
-    id: 'sup_crit_strikes',
-    name: 'Support: Ruthless Precision',
-    category: 'support',
+    id: 'ins_ruthless_precision',
+    name: 'Inscription of Ruthless Precision',
+    category: 'inscription',
     rarity: 'rare',
-    supportId: 'crit_strikes',
-    description: 'Socket into any skill: +12% Base Crit Chance, +35% Crit Multiplier.',
+    inscriptionId: 'ruthless_precision',
+    description: 'Etch onto any Art: +12% Base Crit Chance and +35% Crit Multiplier.',
     tags: ['attack', 'spell'],
   },
 
-  // === PASSIVES & HOLLOW WAKE CONDUITS ===
+  // === DOCTRINES & CONDUITS ===
   {
-    id: 'pas_ember_forged',
-    name: 'Ember-Forged Core',
-    category: 'passive',
+    id: 'doc_ember_forged',
+    name: 'Doctrine of the Furnace',
+    category: 'doctrine',
     rarity: 'common',
     maxStacks: 3,
-    description: '+25% Increased Fire Damage, +12 Added Fire Damage to all skills.',
+    description: 'Kindles every strike with lingering ash: +25% Fire Damage and +12 Added Fire Damage.',
     tags: ['fire'],
     mods: [
       { stat: 'fireDamage', kind: 'inc', value: 0.25 },
@@ -161,12 +179,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_arcane_velocity',
-    name: 'Arcane Velocity',
-    category: 'passive',
+    id: 'doc_arcane_velocity',
+    name: 'Doctrine of Alacrity',
+    category: 'doctrine',
     rarity: 'common',
     maxStacks: 3,
-    description: '+18% Cast Speed, +15% Attack Speed, +8% Move Speed.',
+    description: 'Sharpens your cadence in the fray: +18% Cast Speed, +15% Attack Speed, +8% Move Speed.',
     tags: ['spell', 'attack'],
     mods: [
       { stat: 'castSpeed', kind: 'inc', value: 0.18 },
@@ -175,12 +193,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_ward_reservoir',
-    name: 'Glacial Reservoir',
-    category: 'passive',
+    id: 'doc_glacial_reservoir',
+    name: 'Conduit: Glacial Reservoir',
+    category: 'doctrine',
     rarity: 'common',
     maxStacks: 3,
-    description: '+45 Maximum Ward, +5 Ward Regen/s, +15% Cold Damage.',
+    description: 'Draws winter stillness into your Aegis: +45 Maximum Ward, +5 Ward Regen/s, +15% Cold Damage.',
     tags: ['cold'],
     mods: [
       { stat: 'ward', kind: 'flat', value: 45 },
@@ -189,12 +207,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_vital_bastion',
-    name: 'Vital Bastion',
-    category: 'passive',
+    id: 'doc_vital_bastion',
+    name: 'Doctrine of Iron Marrow',
+    category: 'doctrine',
     rarity: 'common',
     maxStacks: 3,
-    description: '+35 Maximum Life, +1.5 Life Regen/s, +15 Armor.',
+    description: 'Hardens bone and mail alike: +35 Maximum Life, +1.5 Life Regen/s, +15 Armor.',
     tags: [],
     mods: [
       { stat: 'life', kind: 'flat', value: 35 },
@@ -203,12 +221,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_piercing_salvo',
-    name: 'Piercing Salvo',
-    category: 'passive',
+    id: 'doc_piercing_salvo',
+    name: 'Doctrine of the Longbow',
+    category: 'doctrine',
     rarity: 'rare',
     maxStacks: 2,
-    description: '+1 Pierce Count, +1 Extra Projectile, +15% Projectile Damage.',
+    description: 'Teaches projectiles to punch through ranks: +1 Pierce, +1 Extra Projectile, +15% Projectile Damage.',
     tags: ['projectile'],
     mods: [
       { stat: 'pierceCount', kind: 'flat', value: 1 },
@@ -217,12 +235,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_pyromancer_conv',
-    name: 'Avatar of Ash',
-    category: 'passive',
+    id: 'doc_avatar_of_ash',
+    name: 'Conduit: Avatar of Ash',
+    category: 'doctrine',
     rarity: 'mythic',
     maxStacks: 1,
-    description: 'Convert 50% of Physical & Cold Damage to Fire. Gain 15% of Fire as Extra Chaos.',
+    description: 'Turns steel and frost alike to cinder: convert 50% of Physical & Cold to Fire, and gain 15% of Fire as Extra Chaos.',
     tags: ['fire', 'chaos'],
     conversions: [
       { from: 'physical', to: 'fire', ratio: 0.5 },
@@ -231,18 +249,18 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     extras: [{ from: 'fire', to: 'chaos', ratio: 0.15 }],
   },
   {
-    id: 'pas_cast_on_crit',
-    name: 'Conduit: Cast on Crit',
-    category: 'passive',
+    id: 'doc_cast_on_crit',
+    name: 'Conduit: Spark on Precision',
+    category: 'doctrine',
     rarity: 'mythic',
     maxStacks: 1,
-    description: 'On Crit: 55% chance to trigger a blazing Firebolt at the target (0.2s ICD).',
+    description: 'Every critical strike answers with flame: 55% chance on Crit to loose a homing Firebolt (0.2s ICD).',
     tags: ['proc', 'fire', 'spell'],
     procs: [
       {
         id: 'proc_coc_firebolt',
-        name: 'Cast on Crit: Firebolt',
-        description: 'Fires a bonus Firebolt on Critical Strike.',
+        name: 'Spark on Precision: Firebolt',
+        description: 'Fires a homing Firebolt on Critical Strike.',
         trigger: 'onCrit',
         chance: 0.55,
         icd: 0.2,
@@ -252,9 +270,9 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_kinetic_dynamo',
-    name: 'Kinetic Dynamo',
-    category: 'passive',
+    id: 'doc_kinetic_dynamo',
+    name: 'Conduit: Kinetic Dynamo',
+    category: 'doctrine',
     rarity: 'rare',
     maxStacks: 1,
     description: 'While Moving: +25% More Damage and +15% Crit Chance. While Stationary: +30 Armor.',
@@ -266,12 +284,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_toxic_catalyst',
-    name: 'Toxic Catalyst',
-    category: 'passive',
+    id: 'doc_toxic_catalyst',
+    name: 'Doctrine of the Plague-Bearer',
+    category: 'doctrine',
     rarity: 'rare',
     maxStacks: 2,
-    description: '+35% Ailment/DoT Damage, +25% Poison & Bleed Chance, +10% Chaos Pen.',
+    description: 'Deepens every lingering affliction: +35% Ailment/DoT Damage, +25% Poison & Bleed Chance, +10% Chaos Pen.',
     tags: ['dot', 'chaos', 'physical'],
     mods: [
       { stat: 'dotDamage', kind: 'inc', value: 0.35 },
@@ -281,12 +299,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'pas_siphon_kill',
-    name: 'Soul Siphon',
-    category: 'passive',
+    id: 'doc_soul_siphon',
+    name: 'Doctrine of the Barrow',
+    category: 'doctrine',
     rarity: 'common',
     maxStacks: 2,
-    description: '+2 Life on Kill, +4 Ward on Kill, +25 Pickup Radius.',
+    description: 'Gathers the spilled essence of the fallen: +2 Life on Kill, +4 Ward on Kill, +25 Pickup Radius.',
     tags: [],
     mods: [
       { stat: 'lifeOnKill', kind: 'flat', value: 2 },
@@ -295,15 +313,15 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
 
-  // === KEYSTONES (Nova Drift-style build-defining mutators) ===
+  // === KEYSTONE OATHS (Build-defining mutators) ===
   {
-    id: 'key_glass_cannon',
-    name: 'Keystone: Glass Cannon',
-    category: 'keystone',
-    rarity: 'keystone',
+    id: 'oath_glass_spire',
+    name: 'Oath of the Glass Spire',
+    category: 'oath',
+    rarity: 'oath',
     maxStacks: 1,
-    description: '+60% More Global Damage, +15% Crit Chance.',
-    tradeoff: '-40% Maximum Life & -20 Armor.',
+    description: 'Forsake endurance for pure lethality: +60% More Global Damage and +15% Crit Chance.',
+    tradeoff: '-40% Maximum Life and -20 Armor.',
     tags: [],
     mods: [
       { stat: 'damage', kind: 'more', value: 0.6 },
@@ -313,12 +331,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'key_crimson_pact',
-    name: 'Keystone: Crimson Pact',
-    category: 'keystone',
-    rarity: 'keystone',
+    id: 'oath_crimson_pact',
+    name: 'Oath of the Crimson Pact',
+    category: 'oath',
+    rarity: 'oath',
     maxStacks: 1,
-    description: '+45% More Spell Damage & +8% Life Leech; triggers Low-Life bonuses more easily.',
+    description: 'Bind your spells to living blood: +45% More Spell Damage and +8% Life Leech.',
     tradeoff: 'Maximum Ward becomes 0.',
     tags: ['spell'],
     mods: [
@@ -328,12 +346,12 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'key_pyromania',
-    name: 'Keystone: Pyromania',
-    category: 'keystone',
-    rarity: 'keystone',
+    id: 'oath_pyromania',
+    name: 'Oath of the Cinder-Crown',
+    category: 'oath',
+    rarity: 'oath',
     maxStacks: 1,
-    description: '+100% Ignite Chance, +55% More Ailment/DoT Damage, +30% Area.',
+    description: 'Let the burn outlive the blow: +100% Ignite Chance, +55% More Ailment/DoT Damage, +30% Area.',
     tradeoff: '-25% Direct Hit Damage.',
     tags: ['fire', 'dot'],
     mods: [
@@ -344,13 +362,13 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'key_static_overload',
-    name: 'Keystone: Static Overload',
-    category: 'keystone',
-    rarity: 'keystone',
+    id: 'oath_static_overload',
+    name: 'Oath of Static Overload',
+    category: 'oath',
+    rarity: 'oath',
     maxStacks: 1,
-    description: '+35% More Lightning Damage, +2 Chain Count, +40% Shock Chance.',
-    tradeoff: '-35% Projectile & Area Size.',
+    description: 'Surrender breadth for voltage: +35% More Lightning Damage, +2 Chain Count, +40% Shock Chance.',
+    tradeoff: '-35% Area of Effect.',
     tags: ['lightning', 'chain'],
     mods: [
       { stat: 'lightningDamage', kind: 'more', value: 0.35 },
@@ -360,13 +378,13 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
   {
-    id: 'key_singularity',
-    name: 'Keystone: Singularity',
-    category: 'keystone',
-    rarity: 'keystone',
+    id: 'oath_singularity',
+    name: 'Oath of the Singularity',
+    category: 'oath',
+    rarity: 'oath',
     maxStacks: 1,
-    description: '+50% More Orbit & Area Damage, +45% Area of Effect.',
-    tradeoff: '-25% Move Speed & -20% Projectile Damage.',
+    description: 'Anchor yourself as the eye of the storm: +50% More Orbit & Area Damage, +45% Area of Effect.',
+    tradeoff: '-25% Move Speed and -20% Projectile Damage.',
     tags: ['orbit', 'aoe'],
     mods: [
       { stat: 'damage', kind: 'more', value: 0.5, tags: ['orbit'] },

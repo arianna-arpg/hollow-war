@@ -747,19 +747,19 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'shambling_horde',
     name: 'Shambling Horde',
     description:
-      'Raises a shambling tide of 4 Risen Zombies (up to 20 active) that lurch into packs with necrotic claws.',
+      'Summons a Grave Shambler (up to 8 active) that lurches toward the nearest foe and explodes on arrival for area Fire and Chaos damage.',
     color: '#84cc16',
     behavior: 'minion',
-    baseDamage: { physical: 15, chaos: 9 },
-    damageEffectiveness: 0.85,
-    baseCooldown: 2.8,
-    baseCritChance: 0.04,
-    baseProjectiles: 4,
-    baseRadius: 14,
-    baseDuration: 13,
+    baseDamage: { fire: 36, chaos: 14 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 0.95,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 74,
+    baseDuration: 7,
     timedSummon: true,
-    maxSummons: 20,
-    tags: ['spell', 'minion', 'physical', 'chaos', 'dot'],
+    maxSummons: 8,
+    tags: ['spell', 'minion', 'aoe', 'fire', 'chaos'],
   },
   blight_zone: {
     id: 'blight_zone',
@@ -1775,8 +1775,8 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
       return { summary: '+18% Attack Speed, +15% Reach/Area, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
     case 'shambling_horde':
-      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Zombie, +15% Duration, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'projectileDuration', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
-      return { summary: '+20% Poison Chance, +15% Cast & Attack Speed, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.2 }, { stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r === 3 || r === 6) return { summary: '+1 Grave Shambler, +15% Blast Area, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+20% Area, +15% Cast Speed, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
     default:
       return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };

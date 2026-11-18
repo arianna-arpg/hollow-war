@@ -364,7 +364,7 @@ describe('Hollow War Combat SDK', () => {
     engine.update(0.05);
 
     const zombies = engine.minions.filter((m) => m.kind === 'zombie');
-    expect(zombies.length).toBe(4);
+    expect(zombies.length).toBe(1);
     expect(engine.sweeps.some((s) => s.isThrust)).toBe(true);
     expect(engine.pendingAftershocks.some((a) => a.artId === 'earthquake')).toBe(true);
 
@@ -373,5 +373,18 @@ describe('Hollow War Combat SDK', () => {
     const initialR = blight.radius;
     engine.update(1.0);
     expect(blight.radius).toBeGreaterThan(initialR);
+  });
+
+  it('inherits projectile Inscriptions (Seeker homing) on projectile_nova Arts like Poison Nova', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('necromancer'); // starts with Poison Nova (projectile_nova)
+    const pn = engine.arts.find((a) => a.artId === 'poison_nova')!;
+    pn.inscriptions.push(INSCRIPTIONS.seeker);
+    pn.cooldownTimer = 0;
+
+    engine.update(0.05);
+    const pnProjs = engine.projectiles.filter((p) => p.artId === 'poison_nova');
+    expect(pnProjs.length).toBeGreaterThanOrEqual(6);
+    expect(pnProjs.every((p) => p.homing === true)).toBe(true);
   });
 });

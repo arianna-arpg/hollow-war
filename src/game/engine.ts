@@ -192,9 +192,10 @@ export class HollowWarEngine {
   thronelord: { id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string } | null = null;
 
   private spawnTimer = 0;
-  private nextBossAt = 60;
-  private nextIncursionAt = 120;
+  private nextBossAt = 90;
+  private nextIncursionAt = 135;
   private nextWraithWallAt = 150;
+  private nextSwarmSurgeAt = 210;
   private thronelordSpawnedAt600 = false;
   private incursionCount = 0;
   private dotAccumulator = 0;
@@ -294,9 +295,10 @@ export class HollowWarEngine {
     this.totalDamageDealt = 0;
     this.screenShake = 0;
     this.spawnTimer = 0.2;
-    this.nextBossAt = 60;
-    this.nextIncursionAt = 120;
+    this.nextBossAt = 90;
+    this.nextIncursionAt = 135;
     this.nextWraithWallAt = 150;
+    this.nextSwarmSurgeAt = 210;
     this.thronelordSpawnedAt600 = false;
     this.incursionCount = 0;
     this.dotAccumulator = 0;
@@ -771,6 +773,16 @@ export class HollowWarEngine {
     }
   }
 
+  private getProjTraits(art: EquippedArt | undefined, def: ArtDefinition, extraMods: Modifier[]) {
+    const areaScale = this.sheet.get('area', def.tags, extraMods);
+    const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
+    const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
+    const isBoomerang = Boolean(art?.inscriptions.some((i) => i.returnBoomerang));
+    const isHoming = Boolean(def.homing || art?.inscriptions.some((i) => i.forceHoming));
+    const splitOnHit = art ? art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0) : 0;
+    return { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit };
+  }
+
   private castArt(art: EquippedArt, def: ArtDefinition, extraMods: Modifier[]): void {
     if (def.behavior === 'projectile') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
@@ -854,9 +866,9 @@ export class HollowWarEngine {
       const pierce =
         (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-      const areaScale = this.sheet.get('area', def.tags, extraMods);
-      const speed = (def.projectileSpeed ?? 430) * this.sheet.get('projectileSpeed', def.tags, extraMods);
-      const life = (def.baseDuration ?? 1.5) * this.sheet.get('projectileDuration', def.tags, extraMods);
+      const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
+      const speed = (def.projectileSpeed ?? 430) * speedScale;
+      const life = (def.baseDuration ?? 1.5) * durScale;
       for (let i = 0; i < count; i++) {
         const a = this.player.aimAngle + (i / count) * Math.PI * 2;
         this.projectiles.push({
@@ -868,9 +880,12 @@ export class HollowWarEngine {
           radius: def.baseRadius * Math.sqrt(areaScale),
           color: def.color,
           artId: def.id,
-          pierceLeft: pierce,
+          pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
           life,
           hitIds: new Set(),
+          homing: isHoming,
+          splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+          boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
           extraMods,
         });
       }
@@ -1001,10 +1016,9 @@ export class HollowWarEngine {
         const sp = def.sweepProjectiles;
         const projCount = sp.count + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
         const pierce = (sp.pierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-        const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
-        const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
-        const areaScale = this.sheet.get('area', def.tags, extraMods);
+        const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
         const spread = projCount > 1 ? 0.22 : 0;
+        const life = sp.duration * durScale;
         for (let k = 0; k < projCount; k++) {
           const a = this.player.aimAngle + (k - (projCount - 1) / 2) * spread;
           this.projectiles.push({
@@ -1016,11 +1030,14 @@ export class HollowWarEngine {
             radius: sp.radius * Math.sqrt(areaScale),
             color: def.color,
             artId: def.id,
-            pierceLeft: pierce,
-            life: sp.duration * durScale,
+            pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+            life,
             hitIds: new Set(),
+            homing: isHoming,
             explodeRadius: sp.explodeRadius ? sp.explodeRadius * areaScale : undefined,
             explodeScale: sp.explodeScale ?? 0.65,
+            splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+            boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
             extraMods,
           });
         }
@@ -1281,11 +1298,15 @@ export class HollowWarEngine {
           const dx = nearest.x - m.x;
           const dy = nearest.y - m.y;
           m.facing = Math.atan2(dy, dx);
-          const moveSpd = (m.kind === 'bone_golem' ? 165 : m.kind === 'zombie' ? 155 : 205) * speedMult;
-          const reach = m.kind === 'bone_golem' ? 28 : 18;
+          const moveSpd = (m.kind === 'bone_golem' ? 165 : m.kind === 'zombie' ? 165 : 205) * speedMult;
+          const reach = m.kind === 'bone_golem' ? 28 : m.kind === 'zombie' ? 22 : 18;
           if (bestDist > nearest.radius + reach) {
             m.x += (dx / bestDist) * moveSpd * dt;
             m.y += (dy / bestDist) * moveSpd * dt;
+          } else if (m.kind === 'zombie') {
+            this.detonateMinion(m, def, extraMods, art, 1.0);
+            this.minions.splice(i, 1);
+            continue;
           } else if (m.attackTimer <= 0) {
             const spd = Math.max(0.2, this.sheet.get('attackSpeed', def.tags, extraMods));
             m.attackTimer = def.baseCooldown / spd;
@@ -1343,19 +1364,25 @@ export class HollowWarEngine {
           m.attackTimer = def.baseCooldown / spd;
           const a = Math.atan2(nearest.y - m.y, nearest.x - m.x);
           m.facing = a;
-          const speed = def.projectileSpeed ?? 480;
+          const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
+          const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+          const speed = (def.projectileSpeed ?? 480) * speedScale;
+          const life = 1.4 * durScale;
           this.projectiles.push({
             id: nextEntityId++,
             x: m.x,
             y: m.y,
             vx: Math.cos(a) * speed,
             vy: Math.sin(a) * speed,
-            radius: 5.5,
+            radius: 5.5 * Math.sqrt(areaScale),
             color: def.color,
             artId: def.id,
-            pierceLeft: 0,
-            life: 1.4,
+            pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+            life,
             hitIds: new Set(),
+            homing: isHoming,
+            splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+            boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
             extraMods,
           });
         }
@@ -1399,8 +1426,10 @@ export class HollowWarEngine {
           } else {
             const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
             const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+            const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
             const baseA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
-            const projSpeed = def.projectileSpeed ?? 540;
+            const projSpeed = (def.projectileSpeed ?? 540) * speedScale;
+            const life = 1.4 * durScale;
             const spread = count > 1 ? 0.16 : 0;
             for (let k = 0; k < count; k++) {
               const a = baseA + (k - (count - 1) / 2) * spread;
@@ -1410,12 +1439,15 @@ export class HollowWarEngine {
                 y: t.y,
                 vx: Math.cos(a) * projSpeed,
                 vy: Math.sin(a) * projSpeed,
-                radius: 6,
+                radius: 6 * Math.sqrt(areaScale),
                 color: def.color,
                 artId: def.id,
-                pierceLeft: pierce,
-                life: 1.4,
+                pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+                life,
                 hitIds: new Set(),
+                homing: isHoming,
+                splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+                boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
                 extraMods,
               });
             }
@@ -2068,17 +2100,29 @@ export class HollowWarEngine {
 
           const bolts = e.isBoss
             ? this.elapsed > 540
-              ? 12
+              ? 10
               : this.elapsed > 360
-                ? 8
-                : 5
+                ? 7
+                : 4
             : e.archetype === 'skeletal_mortarman'
-              ? 4
-              : e.archetype === 'skeleton_mage' || e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
-                ? 3
-                : e.archetype === 'barrow_watchman'
-                  ? 2
-                  : 1;
+              ? this.elapsed >= 510
+                ? 2
+                : 1
+              : e.archetype === 'skeleton_mage'
+                ? this.elapsed >= 570
+                  ? 3
+                  : this.elapsed >= 390
+                    ? 2
+                    : 1
+                : e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
+                  ? this.elapsed >= 570
+                    ? 3
+                    : 2
+                  : e.archetype === 'barrow_watchman'
+                    ? this.elapsed >= 360
+                      ? 2
+                      : 1
+                    : 1;
           const spread = e.isBoss && bolts >= 8 ? (Math.PI * 2) / bolts : 0.24;
 
           for (let b = 0; b < bolts; b++) {
@@ -2269,11 +2313,39 @@ export class HollowWarEngine {
     }
 
     if (this.elapsed >= this.nextBossAt) {
-      this.nextBossAt += 60;
-      const angle = Math.random() * Math.PI * 2;
-      this.enemies.push(
-        createEnemy('lich', this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
-      );
+      // Avoid spawning an Undead Boss while a Demonic Incursion Portal is active
+      if (this.incursionPortals.length > 0) {
+        this.nextBossAt = this.elapsed + 20;
+      } else {
+        this.nextBossAt += 90;
+        const angle = Math.random() * Math.PI * 2;
+        this.enemies.push(
+          createEnemy('lich', this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
+        );
+      }
+    }
+
+    if (this.elapsed >= this.nextSwarmSurgeAt) {
+      this.nextSwarmSurgeAt += 75;
+      const surgeCount = this.elapsed >= 420 ? 14 : 10;
+      const ringDist = Math.max(this.viewportW, this.viewportH) * 0.56 + 70;
+      for (let i = 0; i < surgeCount; i++) {
+        const a = (i / surgeCount) * Math.PI * 2 + Math.random() * 0.18;
+        const arch: EnemyArchetype = i % 2 === 0 ? 'ghoul' : 'zombie';
+        this.enemies.push(
+          createEnemy(arch, this.player.x + Math.cos(a) * ringDist, this.player.y + Math.sin(a) * ringDist, this.elapsed),
+        );
+      }
+      this.floatingTexts.push({
+        x: this.player.x,
+        y: this.player.y - 34,
+        vy: -18,
+        text: 'UNDEAD HORDE SURGING!',
+        color: '#a3e635',
+        life: 1.6,
+        maxLife: 1.6,
+        scale: 1.1,
+      });
     }
   }
 
@@ -2323,14 +2395,18 @@ export class HollowWarEngine {
       });
     }
 
-    // Regular Incursion Portals start at 2:00 (120s), then every 85s; 10:00 (600s) triggers the Thronelord Boss!
+    // Regular Incursion Portals start at 2:15 (135s), then every 90s; 10:00 (600s) triggers the Thronelord Boss!
+    // Defer regular Incursions if an Undead Boss is currently alive so the two factions don't overshadow each other.
     const triggerMajor600 = !this.thronelordSpawnedAt600 && this.elapsed >= 600;
     if (triggerMajor600 || this.elapsed >= this.nextIncursionAt) {
-      if (triggerMajor600) {
-        this.thronelordSpawnedAt600 = true;
+      if (!triggerMajor600 && this.enemies.some((e) => e.isBoss && e.life > 0)) {
+        this.nextIncursionAt = this.elapsed + 20;
       } else {
-        this.nextIncursionAt += 85;
-      }
+        if (triggerMajor600) {
+          this.thronelordSpawnedAt600 = true;
+        } else {
+          this.nextIncursionAt += 90;
+        }
       this.incursionCount += 1;
       const isMajor = triggerMajor600;
       const angle = Math.random() * Math.PI * 2;
@@ -2358,6 +2434,7 @@ export class HollowWarEngine {
         maxLife: 2.0,
         scale: 1.2,
       });
+      }
     }
 
     for (let i = this.incursionPortals.length - 1; i >= 0; i--) {

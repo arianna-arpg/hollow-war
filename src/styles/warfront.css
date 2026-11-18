@@ -1,0 +1,119 @@
+@charset "UTF-8";
+:root {
+  color-scheme: dark;
+  --paper: #f1e7d7;
+  --body: #c8c0b6;
+  --muted: #ada397;
+  --gold: #e3bc86;
+  --rule: #554639;
+  --bg: #100f0f;
+  --display: "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --reading: "Baskervville", Georgia, serif;
+  --sans: "Source Sans 3", "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 1.5rem; }
+body { margin: 0; background: var(--bg); color: var(--body); font: 1.07rem/1.65 var(--sans); }
+a { color: inherit; text-decoration: none; }
+a:hover, button:hover, summary:hover { color: #ffddb1; }
+:focus-visible { outline: 2px solid #ffd090; outline-offset: 5px; }
+img { display: block; max-width: 100%; }
+.frame { width: min(1180px, 88%); margin-inline: auto; }
+.skip { position: fixed; z-index: 5; left: 1rem; top: -6rem; background: #181411; padding: .55rem 1rem; }
+.skip:focus { top: 1rem; }
+.mast { background: #100f0ef7; border-bottom: 1px solid var(--rule); }
+.bar, .bar nav, .brand, .actions, .chapters nav, footer .frame { display: flex; align-items: center; }
+.bar { min-height: 70px; gap: 2rem; justify-content: space-between; }
+.brand { font: 600 1.24rem var(--display); letter-spacing: .095em; text-transform: uppercase; gap: .65rem; color: var(--paper); white-space: nowrap; }
+.bar nav { gap: clamp(1rem, 2.8vw, 2.6rem); font-size: .93rem; }
+.nav-play, .primary, .choices button, label { cursor: pointer; }
+.nav-play { padding: .42rem 1.3rem; border: 1px solid #8a7357; font: .94rem var(--display); color: var(--gold); }
+.hero { position: relative; isolation: isolate; overflow: hidden; background: #171414; }
+.hero-painting { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg,#100f10 4%,#141112f2 16%,#171314bc 32%,#18141422 53%,transparent 70%), linear-gradient(0deg,#100f0f 0%,transparent 25%), url('/warfront/demon_invasion.webp') right 40% / 78% auto no-repeat; }
+.hero-inner { padding-block: clamp(65px,8vw,135px) clamp(65px,7vw,100px); }
+.eyebrow, .meta, .chapters small, dt { font: 600 .78rem/1.5 var(--sans); text-transform: uppercase; letter-spacing: .16em; color: var(--gold); }
+.line { display: flex; align-items: center; gap: .9rem; }
+.line::before { content: ''; width: 2.35rem; height: 1px; background: #b28759; }
+h1, h2, h3, p, figure, dl { margin: 0; }
+h1, h2, h3, .lead { color: var(--paper); font-family: var(--display); font-weight: 400; }
+h1 { font-size: clamp(5rem,8.8vw,9rem); line-height: .95; text-transform: uppercase; letter-spacing: -.045em; margin: 1.5rem 0 1.4rem; }
+h1 span { display: block; color: #dfa16a; font-size: 1.2em; letter-spacing: .035em; }
+.hero-copy { font: 1.25rem/1.6 var(--reading); max-width: 29rem; text-wrap: pretty; color: #e9dfd2; text-shadow: 0 1px 12px #000; }
+.actions { gap: 1.55rem; flex-wrap: wrap; margin-top: 1.85rem; }
+.primary { display: inline-flex; align-items: center; gap: .65rem; color: #251910; padding: .7rem 1.45rem; border: 1px solid #f1c291; background: linear-gradient(110deg,#e8c79e,#c8935f); font: 600 1rem/1.6 var(--sans); }
+.primary:hover { color: #130d08; background: #efc999; }
+.primary span { font-size: 1.32rem; line-height: 1; }
+.secondary { border-bottom: 1px solid #977457; padding-bottom: .13rem; font-size: .98rem; color: #e6d4bd; }
+.meta { margin-top: 1.1rem; font-size: .75rem; letter-spacing: .08em; color: #bcb0a2; }
+.meta span { font-size: .53rem; color: #af8157; padding: 0 .47rem; vertical-align: middle; }
+.chapters { background: #151311; border-block: 1px solid var(--rule); }
+.chapters nav { padding-block: 1.4rem; }
+.chapters a { flex: 1; text-align: center; display: grid; gap: .16rem; }
+.chapters a + a { border-left: 1px solid var(--rule); }
+.chapters small { font-size: .73rem; color: #c5a982; }
+.chapters span { font: 1.2rem/1.5 var(--display); color: var(--paper); }
+.chapter { padding-block: clamp(3.8rem,7vw,6.2rem); }
+h2 { font-size: clamp(2.25rem,4.2vw,4.1rem); line-height: 1.12; letter-spacing: -.034em; margin: .7rem 0 1.4rem; text-wrap: balance; }
+h3 { font-size: clamp(2rem,3.2vw,3.2rem); line-height: 1.15; }
+.front-grid, .craft-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(1.75rem,5vw,5rem); align-items: center; }
+.front-grid figure img { width: 100%; height: auto; border: 1px solid var(--rule); }
+.lead { font-size: 1.65rem; line-height: 1.3; margin-bottom: .75rem; }
+.field { margin: 1.15rem 0; }
+dt { font-size: .76rem; margin: 1rem 0 .28rem; }
+dd { margin: 0; }
+details { border-block: 1px solid var(--rule); padding: .63rem 0; }
+summary { cursor: pointer; color: var(--gold); }
+details p { padding: .65rem 0 .2rem; }
+kbd { font: .87em var(--sans); border: 1px solid #65594e; padding: 0 .25em; border-radius: 3px; }
+.band { border-block: 1px solid #41372f; background: #171514; }
+.choices { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--rule); margin-top: 1.75rem; gap: .3rem; }
+.choices button { border: 0; border-bottom: 2px solid transparent; color: var(--body); background: transparent; font: 1.06rem var(--display); padding: .85rem 1.1rem; }
+.choices button[aria-pressed=true] { color: #f4d9b3; border-color: #d4a36b; background: #c9a37912; }
+.vessel-display { display: grid; grid-template-columns: 1fr 1fr; background: #121111; border-bottom: 1px solid var(--rule); }
+.vessel-display img { width: 100%; height: 100%; min-height: 340px; max-height: 440px; object-fit: cover; object-position: center 35%; }
+.vessel-copy { align-self: center; padding: clamp(1.45rem,4vw,3rem); }
+.vessel-copy h3 { margin-top: .4rem; }
+.vessel-copy dd { font: 1.22rem/1.45 var(--display); color: #e7dfd0; }
+.craft-grid { grid-template-columns: 1fr 1fr; }
+.craft-grid p + p, .legacy-note p + p { margin-top: 1rem; }
+.etch { border: 1px solid var(--rule); background: radial-gradient(ellipse at 40% 28%,#35251f,#171516 76%); padding: 1.5rem; }
+fieldset { border: 0; padding: 0; margin: .8rem 0; display: flex; flex-wrap: wrap; gap: .6rem 1rem; }
+legend { font-size: .88rem; margin-bottom: .45rem; padding: 0; }
+label { font-size: .95rem; color: #e2d6c5; }
+input { accent-color: #daab74; }
+canvas { width: 100%; height: auto; display: block; }
+#etch-caption { font-family: var(--reading); min-height: 3.4em; color: #ecd8bf; }
+.legacy { background: linear-gradient(90deg,#111216ed,#181a1ed9 68%,#0d1219b5),url('/warfront/discovery.webp') center / cover; }
+.legacy-intro, .legacy-note { max-width: 46rem; }
+.legacy-intro { margin-bottom: 1rem; }
+.legacy-note { margin-top: 2.8rem; padding-left: 1.5rem; border-left: 2px solid #9c7952; }
+.legacy-note h3 { font-size: 2rem; margin: .45rem 0 1rem; }
+.quiet { color: #bdb1a4; font-size: .94rem; }
+footer .frame { min-height: 90px; flex-wrap: wrap; gap: .85rem 1.8rem; font-size: .9rem; padding-block: 1.1rem; }
+footer span { margin-right: auto; }
+@media (max-width: 820px) {
+  .bar { gap: 1rem; flex-wrap: wrap; padding-block: .75rem .6rem; }
+  .bar nav { order: 3; width: 100%; justify-content: space-between; }
+  .front-grid, .craft-grid { grid-template-columns: 1fr; }
+  .hero-painting { background-size: auto,auto,cover; }
+  .hero-copy { max-width: 25rem; }
+}
+@media (max-width: 600px) {
+  .frame { width: 90%; }
+  .hero-painting { background-image: linear-gradient(0deg,#100f0f 5%,#131111e8 27%,#11101070 61%,transparent 90%),url('/warfront/demon_invasion.webp'); background-size: auto,auto 77%; background-position: center,53% top; }
+  .hero-inner { padding-block: 10rem 2.75rem; }
+  h1 { font-size: clamp(3.55rem,13vw,5rem); margin: 1rem 0; }
+  h1 span { display: inline; font-size: 1em; }
+  .hero-copy { font-size: 1.13rem; }
+  .actions { gap: .9rem 1.3rem; }
+  .chapters nav { padding-block: 1.1rem; }
+  .chapters small { display: none; }
+  .chapters span { font-size: .94rem; padding-inline: .25rem; }
+  .bar nav { font-size: .86rem; gap: .4rem; }
+  .vessel-display { grid-template-columns: 1fr; }
+  .vessel-display img { height: 245px; min-height: 0; }
+  .choices { gap: 0; }
+  .choices button { font-size: 1rem; padding: .8rem; }
+  .etch { padding: 1rem; }
+  footer .brand { width: 100%; }
+}

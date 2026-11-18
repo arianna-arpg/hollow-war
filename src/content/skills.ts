@@ -249,12 +249,12 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'consecration',
     name: 'Consecration',
     description:
-      'Consecrates the ground for 5s, scorching enemies inside while healing you as you stand upon it.',
+      'Consecrates the ground for 4.5s, scorching enemies inside while healing you as you stand upon it.',
     color: '#f0d890',
     behavior: 'ground_zone',
     baseDamage: { fire: 16 },
     damageEffectiveness: 0.9,
-    baseCooldown: 2.6,
+    baseCooldown: 4.8,
     baseCritChance: 0.04,
     baseProjectiles: 1,
     baseRadius: 125,
@@ -597,3 +597,129 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     ],
   },
 };
+
+export interface ArtRankStep {
+  summary: string;
+  mods: Modifier[];
+}
+
+/**
+ * Returns the bespoke bonus granted when an Art advances to `rank` (2..8).
+ * Balances moderate direct damage with speed, crit, ailments, penetration, area, cooldowns, and extra projectiles/minions.
+ */
+export function getArtRankStep(artId: string, rank: number): ArtRankStep {
+  const r = rank;
+  switch (artId) {
+    case 'firebolt':
+      if (r === 3 || r === 6) return { summary: '+1 Projectile, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 0) return { summary: '+12% Cast Speed, +15% Ignite Chance, +8% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.12 }, { stat: 'igniteChance', kind: 'flat', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+      return { summary: '+8% Fire Pen, +18% Crit Multi, +10% More Damage', mods: [{ stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'critMulti', kind: 'flat', value: 0.18 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'fireball':
+      if (r % 2 === 0) return { summary: '+18% Area of Effect, +12% Ignite Chance, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.18 }, { stat: 'igniteChance', kind: 'flat', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+8% Fire Pen, +8% Crit Chance, +10% More Damage', mods: [{ stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'flame_arrow':
+      if (r === 2 || r === 5) return { summary: '+1 Pierce, +12% Cast Speed, +8% More Damage', mods: [{ stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'castSpeed', kind: 'inc', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+      if (r === 4 || r === 7) return { summary: '+1 Arrow, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+18% Ignite Chance, +8% Fire Pen, +10% More Damage', mods: [{ stat: 'igniteChance', kind: 'flat', value: 0.18 }, { stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'frostbolt':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Shard, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 1) return { summary: '+20% Chill Chance, +8% Cold Pen, +10% More Damage', mods: [{ stat: 'chillChance', kind: 'flat', value: 0.2 }, { stat: 'coldPen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+14% Cast Speed, +22% Crit Multi, +8% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.14 }, { stat: 'critMulti', kind: 'flat', value: 0.22 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+
+    case 'cleave':
+      if (r % 2 === 0) return { summary: '+16% Area of Effect, +15% Bleed Chance, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.16 }, { stat: 'bleedChance', kind: 'flat', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+14% Attack Speed, +10% Armor Pen, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.14 }, { stat: 'armorPen', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'rend':
+      if (r % 2 === 0) return { summary: '+15% Bleed Chance, +22% Ailment/DoT Damage, +10% More Damage', mods: [{ stat: 'bleedChance', kind: 'flat', value: 0.15 }, { stat: 'dotDamage', kind: 'inc', value: 0.22 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+8% Crit Chance, +25% Crit Multi, +10% More Damage', mods: [{ stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'critMulti', kind: 'flat', value: 0.25 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'whirlwind':
+      if (r % 3 === 0) return { summary: '+3% Life Leech, +15% Area, +10% More Damage', mods: [{ stat: 'lifeLeech', kind: 'flat', value: 0.03 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 0) return { summary: '+16% Attack Speed, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.16 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+10% Armor Pen, +15% Bleed Chance, +10% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.1 }, { stat: 'bleedChance', kind: 'flat', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'fan_of_blades':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+2 Knives, +8% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 2 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+      if (r === 3 || r === 6) return { summary: '+1 Pierce, +8% Crit Chance, +10% More Damage', mods: [{ stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+15% Attack Speed, +22% Crit Multi, +8% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'critMulti', kind: 'flat', value: 0.22 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+
+    case 'sacrament_of_ruin':
+      if (r === 3 || r === 6) return { summary: '+1 Homing Orb, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 0) return { summary: '+18% Blast Area, +8% Chaos Pen, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.18 }, { stat: 'chaosPen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+18% Poison Chance, +20% DoT Damage, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.18 }, { stat: 'dotDamage', kind: 'inc', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'poison_nova':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+4 Venom Bolts, +8% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 4 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+      if (r % 2 === 1) return { summary: '+22% Ailment/DoT Damage, +8% Chaos Pen, +10% More Damage', mods: [{ stat: 'dotDamage', kind: 'inc', value: 0.22 }, { stat: 'chaosPen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+14% Cooldown Recovery, +1 Pierce, +8% More Damage', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.14 }, { stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+
+    case 'chain_lightning':
+      if (r % 2 === 0) return { summary: '+1 Chain, +10% More Damage', mods: [{ stat: 'chainCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+16% Shock Chance, +8% Lightning Pen, +12% Cast Speed', mods: [{ stat: 'shockChance', kind: 'flat', value: 0.16 }, { stat: 'lightningPen', kind: 'flat', value: 0.08 }, { stat: 'castSpeed', kind: 'inc', value: 0.12 }] };
+
+    case 'hammer_of_judgment':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Spiraling Hammer, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 1) return { summary: '+15% Cast Speed, +15% Area, +10% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+10% Armor Pen, +24% Crit Multi, +10% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.1 }, { stat: 'critMulti', kind: 'flat', value: 0.24 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'consecration':
+      if (r % 2 === 0) return { summary: '+18% Cooldown Recovery, +16% Area, +10% More Damage', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.16 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+18% Ignite Chance, +8% Fire Pen, +12% More Damage', mods: [{ stat: 'igniteChance', kind: 'flat', value: 0.18 }, { stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'frost_nova':
+      if (r % 2 === 0) return { summary: '+18% Area, +20% Chill Chance, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.18 }, { stat: 'chillChance', kind: 'flat', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+16% Cooldown Recovery, +8% Cold Pen, +22% Crit Multi', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.16 }, { stat: 'coldPen', kind: 'flat', value: 0.08 }, { stat: 'critMulti', kind: 'flat', value: 0.22 }] };
+
+    case 'summon_skeleton':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Skeleton Warrior, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+15% Attack Speed, +10% Armor Pen, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'armorPen', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'summon_flame_sprite':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Flame Sprite, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+15% Cast Speed, +16% Ignite Chance, +8% Fire Pen', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'igniteChance', kind: 'flat', value: 0.16 }, { stat: 'firePen', kind: 'flat', value: 0.08 }] };
+
+    case 'summon_bone_golem':
+      if (r === 5) return { summary: '+1 Bone Golem, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      if (r % 2 === 0) return { summary: '+20% Slam Area, +12% Armor Pen, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'armorPen', kind: 'flat', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+16% Attack Speed, +24% Crit Multi, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.16 }, { stat: 'critMulti', kind: 'flat', value: 0.24 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'ballista_sentry':
+      if (r === 3 || r === 6) return { summary: '+1 Ballista Bolt, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 0) return { summary: '+16% Attack Speed, +1 Pierce, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.16 }, { stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+8% Crit Chance, +10% Armor Pen, +10% More Damage', mods: [{ stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'armorPen', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'flame_totem':
+      if (r === 3 || r === 6) return { summary: '+1 Firebolt, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      if (r % 2 === 0) return { summary: '+18% Cast Speed, +10% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.18 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+18% Ignite Chance, +8% Fire Pen, +10% More Damage', mods: [{ stat: 'igniteChance', kind: 'flat', value: 0.18 }, { stat: 'firePen', kind: 'flat', value: 0.08 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'fire_mine':
+    case 'frost_trap': {
+      const isCold = artId === 'frost_trap';
+      if (r % 2 === 0) return { summary: '+18% Blast Area, +15% Cooldown Recovery, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.18 }, { stat: 'cooldownRecovery', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return {
+        summary: isCold ? '+22% Chill Chance, +8% Cold Pen, +12% More Damage' : '+20% Ignite Chance, +8% Fire Pen, +12% More Damage',
+        mods: [
+          { stat: isCold ? 'chillChance' : 'igniteChance', kind: 'flat', value: isCold ? 0.22 : 0.2 },
+          { stat: isCold ? 'coldPen' : 'firePen', kind: 'flat', value: 0.08 },
+          { stat: 'damage', kind: 'more', value: 0.12 },
+        ],
+      };
+    }
+
+    default:
+      return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };
+  }
+}
+
+export function getArtModsForRank(artId: string, level: number): Modifier[] {
+  const mods: Modifier[] = [];
+  for (let r = 2; r <= level; r++) {
+    mods.push(...getArtRankStep(artId, r).mods);
+  }
+  return mods;
+}

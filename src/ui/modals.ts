@@ -1,4 +1,4 @@
-import { ARTS } from '../content/skills.ts';
+import { ARTS, getArtRankStep } from '../content/skills.ts';
 import { VESSELS } from '../content/vessels.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
@@ -180,7 +180,7 @@ export function renderModal(
                         ? `<div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:6px">${ARTS[card.artId].description}</div>
                            <div style="font-size:11px;color:#fbbf24;margin-bottom:10px">${
                              engine.arts.some((a) => a.artId === card.artId)
-                               ? `Rank ${engine.arts.find((a) => a.artId === card.artId)!.level} → ${engine.arts.find((a) => a.artId === card.artId)!.level + 1} (+22% More Art Damage)`
+                               ? `Rank ${engine.arts.find((a) => a.artId === card.artId)!.level} → ${engine.arts.find((a) => a.artId === card.artId)!.level + 1}: ${getArtRankStep(card.artId, engine.arts.find((a) => a.artId === card.artId)!.level + 1).summary}`
                                : 'Learn new active Art'
                            }</div>`
                         : `<div style="font-size:13px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>`

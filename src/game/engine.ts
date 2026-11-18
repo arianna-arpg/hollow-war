@@ -1,5 +1,7 @@
 import {
   ARTS,
+  getArtModsForRank,
+  getArtRankStep,
   INSCRIPTIONS,
   MAX_ACTIVE_ARTS,
   MAX_ART_RANK,
@@ -394,42 +396,7 @@ export class HollowWarEngine {
       cooldownTimer: 0.1,
       inscriptions: [],
       getArtMods() {
-        const mods: Modifier[] = [];
-        if (this.level > 1) {
-          mods.push({
-            stat: 'damage',
-            kind: 'more',
-            value: (this.level - 1) * 0.22,
-            source: `Rank ${this.level}`,
-          });
-          if (this.artId === 'chain_lightning') {
-            mods.push({ stat: 'chainCount', kind: 'flat', value: this.level - 1 });
-          } else if (
-            this.artId === 'hammer_of_judgment' ||
-            this.artId === 'fan_of_blades' ||
-            this.artId === 'frostbolt' ||
-            this.artId === 'sacrament_of_ruin' ||
-            this.artId === 'summon_skeleton' ||
-            this.artId === 'summon_flame_sprite' ||
-            this.artId === 'summon_bone_golem' ||
-            this.artId === 'ballista_sentry' ||
-            this.artId === 'poison_nova'
-          ) {
-            mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
-          } else if (
-            this.artId === 'cleave' ||
-            this.artId === 'rend' ||
-            this.artId === 'whirlwind' ||
-            this.artId === 'consecration' ||
-            this.artId === 'frost_nova' ||
-            this.artId === 'fire_mine' ||
-            this.artId === 'frost_trap' ||
-            this.artId === 'flame_totem' ||
-            this.artId === 'fireball'
-          ) {
-            mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
-          }
-        }
+        const mods: Modifier[] = getArtModsForRank(this.artId, this.level);
         for (const ins of this.inscriptions) {
           mods.push(...ins.mods);
         }
@@ -1927,7 +1894,7 @@ export class HollowWarEngine {
       let echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
 
       if (card.category === 'art' && card.artId === ar.artId) {
-        extraMods.push({ stat: 'damage', kind: 'more', value: 0.22 });
+        extraMods.push(...getArtRankStep(ar.artId, ar.level + 1).mods);
       } else if (card.category === 'inscription' && card.inscriptionId && previewTargetId === ar.artId) {
         const ins = INSCRIPTIONS[card.inscriptionId];
         if (ins) {

@@ -1,0 +1,23 @@
+{
+  "name": "hollow-war",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hollow War — A theorycrafting-first Vampire Survivors / Nova Drift arena roguelite built on Hollow Wake combat principles.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arianna-arpg/hollow-war.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

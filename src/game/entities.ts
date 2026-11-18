@@ -23,6 +23,8 @@ export type EnemyArchetype =
   | 'skeleton_warrior'
   | 'skeleton_archer'
   | 'wraith'
+  | 'gravemaw'
+  | 'revenant_knight'
   | 'imp'
   | 'hellhound'
   | 'demon_brute'
@@ -164,4 +166,15 @@ export interface TrapEntity {
   life: number;
   triggerRadius: number;
   blastRadius: number;
+}
+
+export interface IncursionPortal {
+  id: number;
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  spawnTimer: number;
+  wavesLeft: number;
+  isMajor: boolean;
 }

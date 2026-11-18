@@ -152,6 +152,58 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       ctx.fill();
       break;
     }
+    case 'gravemaw': {
+      // Hulking grave-horror: irregular body, wide jagged maw, 4 pale eyes
+      ctx.fillStyle = baseColor;
+      ctx.strokeStyle = '#18181b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.88, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Jagged maw
+      ctx.fillStyle = '#090b10';
+      ctx.beginPath();
+      ctx.arc(r * 0.28, 0, r * 0.52, -Math.PI * 0.48, Math.PI * 0.48);
+      ctx.fill();
+      ctx.fillStyle = '#e7e5e4';
+      for (const ty of [-r * 0.28, 0, r * 0.28]) {
+        ctx.fillRect(r * 0.52, ty - 2, 4, 4);
+      }
+      ctx.fillStyle = '#bef264';
+      for (const ey of [-r * 0.4, -r * 0.18, r * 0.18, r * 0.4]) {
+        ctx.beginPath();
+        ctx.arc(r * 0.12, ey, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'revenant_knight': {
+      // Ghostly tattered cloak + armored torso + pauldrons + helm + broadsword
+      ctx.fillStyle = flash ? '#ffffff' : 'rgba(125, 211, 252, 0.25)';
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, -r * 0.65);
+      ctx.lineTo(-r * 1.1, -r * 0.75);
+      ctx.lineTo(-r * 0.85, 0);
+      ctx.lineTo(-r * 1.1, r * 0.75);
+      ctx.lineTo(r * 0.3, r * 0.65);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = baseColor;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(r * 0.2, r * 0.52, r * 1.0, r * 0.2);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.arc(r * 0.24, 0, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'lich': {
       // Undead Boss: burial robe, glowing orb-staff, crowned skull, orbiting runes
       ctx.fillStyle = flash ? '#ffffff' : '#3b0764';
@@ -396,6 +448,31 @@ export function renderGame(
 
   // Hollow Wake Warfront / Ashen Barrow terrain & doodads
   renderHollowTerrain(ctx, engine.player.x, engine.player.y, width, height, engine.elapsed);
+
+  // Demonic Incursion Portals
+  for (const portal of engine.incursionPortals) {
+    ctx.save();
+    ctx.translate(portal.x, portal.y);
+    const pulse = 0.85 + Math.sin(engine.elapsed * 6 + portal.id) * 0.15;
+    const rad = (portal.isMajor ? 42 : 32) * pulse;
+    const grad = ctx.createRadialGradient(0, 0, 4, 0, 0, rad);
+    grad.addColorStop(0, 'rgba(251, 146, 60, 0.9)');
+    grad.addColorStop(0.55, 'rgba(220, 38, 38, 0.55)');
+    grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, rad, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.rotate(engine.elapsed * 1.8);
+    ctx.strokeStyle = portal.isMajor ? '#fde047' : '#f97316';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Novas
   for (const n of engine.novas) {

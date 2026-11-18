@@ -1,65 +1,7 @@
 import { ARTS } from '../content/skills.ts';
-import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
-import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
+import { VESSELS } from '../content/vessels.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
-import type { ConditionId, Modifier } from '../sdk/types.ts';
-
-function formatConditionLabel(when: ConditionId): string {
-  switch (when) {
-    case 'lowLife':
-      return 'on Low Life (≤40%)';
-    case 'fullLife':
-      return 'on Full Life';
-    case 'warded':
-      return 'while Warded';
-    case 'wardBroken':
-      return 'while Ward is Broken';
-    case 'moving':
-      return 'while Moving';
-    case 'stationary':
-      return 'while Stationary';
-  }
-}
-
-function formatModifier(m: Modifier): string {
-  const rule = HOLLOW_WAR_STAT_RULES.get(m.stat);
-  const label = rule?.label ?? m.stat;
-  const sign = m.value >= 0 ? '+' : '';
-  let valStr: string;
-  if (m.kind === 'inc' || m.kind === 'more' || rule?.percent) {
-    valStr = `${sign}${Math.round(m.value * 100)}%`;
-  } else {
-    valStr = `${sign}${m.value}`;
-  }
-  const kindStr = m.kind === 'more' ? ' More' : m.kind === 'inc' ? ' Increased' : '';
-  const whenStr = m.when ? ` ${formatConditionLabel(m.when)}` : '';
-  return `${valStr}${kindStr} ${label}${whenStr}`;
-}
-
-function renderVesselInnateLines(v: VesselDefinition, activeConds?: Set<ConditionId>): string {
-  const lines: string[] = [];
-  for (const m of v.mods) {
-    let badge = '';
-    if (m.when && activeConds) {
-      const isActive = activeConds.has(m.when);
-      badge = isActive
-        ? ` <span style="color:#4ade80;font-weight:700">[ACTIVE]</span>`
-        : ` <span style="color:#94a3b8">[INACTIVE]</span>`;
-    }
-    lines.push(`<div style="font-size:11px;color:#cbd5e1">• ${formatModifier(m)}${badge}</div>`);
-  }
-  for (const c of v.conversions ?? []) {
-    lines.push(`<div style="font-size:11px;color:#fb923c">• Convert ${Math.round(c.ratio * 100)}% ${c.from} → ${c.to}</div>`);
-  }
-  for (const e of v.extras ?? []) {
-    lines.push(`<div style="font-size:11px;color:#c084fc">• Gain ${Math.round(e.ratio * 100)}% ${e.from} as Extra ${e.to}</div>`);
-  }
-  for (const p of v.procs ?? []) {
-    lines.push(`<div style="font-size:11px;color:#fde047">• ${p.name}: ${p.description}</div>`);
-  }
-  return lines.join('');
-}
 
 export function renderModal(
   container: HTMLElement,
@@ -86,7 +28,7 @@ export function renderModal(
           </button>
         </div>
         <div class="modal-subtitle">
-          Step onto the Ashen Warfront against the Demon and Undead hosts. Choose a Hollow Wake class to shape your Arts, Inscriptions, Doctrines, and Oaths.
+          Step onto the Ashen Warfront against the Undead host and Demonic Incursion Portals. Choose a Hollow Wake class for its Opening Art and Ultimate.
           <span style="color:#f59e0b">WASD / Arrows to move · Space / Shift for Class Ultimate · Q to toggle Aim · Tab for Build Inspector</span>
         </div>
         <div class="grid-3">
@@ -102,10 +44,6 @@ export function renderModal(
                 </div>
                 <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">
                   Ultimate: <strong style="color:${v.color}">${v.ultimate.name}</strong> — ${v.ultimate.description}
-                </div>
-                <div style="background:rgba(9,11,16,0.55);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:7px 9px;margin-bottom:8px">
-                  <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:4px">Innate Class Passives</div>
-                  ${renderVesselInnateLines(v)}
                 </div>
               </div>
               <button class="btn btn-primary" style="width:100%;margin-top:8px">Enter the Warfront</button>
@@ -195,7 +133,7 @@ export function renderModal(
           </div>
         </div>
         <div class="modal-subtitle">
-          Choose an Art, Inscription, Doctrine, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
+          Choose an Art, Inscription, Passive, Conduit, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
         </div>
         <div class="grid-3">
           ${engine.draftOptions
@@ -351,11 +289,6 @@ export function renderModal(
                 `;
               })
               .join('')}
-
-            <h3 style="margin-top:12px">Innate Class Passives (${engine.vessel.name})</h3>
-            <div style="margin-bottom:10px">
-              ${renderVesselInnateLines(engine.vessel, new Set(conds))}
-            </div>
 
             <h3 style="margin-top:12px">Active Conversions, Extra & Procs</h3>
             ${convs.map((c) => `<div class="stat-line"><span>Convert ${c.from} → ${c.to}</span><span>${(c.ratio * 100).toFixed(0)}%</span></div>`).join('')}

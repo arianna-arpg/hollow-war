@@ -121,6 +121,58 @@ export function createEnemy(
         abilityTimer: 0,
         orbitHitCooldown: 0,
       };
+    case 'gravemaw':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Gravemaw',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 20,
+        life: 98 * hpScale,
+        maxLife: 98 * hpScale,
+        speed: 64,
+        damage: 19 * (1 + elapsedSeconds / 135),
+        xpValue: 26,
+        armor: 22,
+        resistances: { chaos: 0.25 },
+        color: '#6b7280',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      };
+    case 'revenant_knight':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Revenant Knight',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 16,
+        life: 72 * hpScale,
+        maxLife: 72 * hpScale,
+        speed: 112 + Math.min(35, elapsedSeconds * 0.14),
+        damage: 17 * (1 + elapsedSeconds / 130),
+        xpValue: 24,
+        armor: 26,
+        resistances: { cold: 0.2, physical: 0.15 },
+        color: '#94a3b8',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      };
     case 'lich':
       return {
         id: nextEnemyId++,
@@ -256,32 +308,29 @@ export function createEnemy(
   }
 }
 
+/** Core wave spawning draws exclusively from the Undead host; Demons surge from Incursion Portals. */
 export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyArchetype {
   const r = rng();
   if (elapsed < 25) {
-    if (r < 0.55) return 'ghoul';
-    if (r < 0.85) return 'skeleton_warrior';
-    return 'imp';
+    return r < 0.6 ? 'ghoul' : 'skeleton_warrior';
   }
   if (elapsed < 55) {
-    if (r < 0.28) return 'ghoul';
-    if (r < 0.54) return 'skeleton_warrior';
-    if (r < 0.74) return 'imp';
-    if (r < 0.9) return 'hellhound';
-    return 'demon_brute';
+    if (r < 0.35) return 'ghoul';
+    if (r < 0.65) return 'skeleton_warrior';
+    if (r < 0.85) return 'wraith';
+    return 'gravemaw';
   }
   if (elapsed < 95) {
-    if (r < 0.2) return 'skeleton_warrior';
-    if (r < 0.38) return 'imp';
-    if (r < 0.55) return 'hellhound';
-    if (r < 0.72) return 'wraith';
-    if (r < 0.86) return 'demon_brute';
-    return 'skeleton_archer';
+    if (r < 0.22) return 'ghoul';
+    if (r < 0.45) return 'skeleton_warrior';
+    if (r < 0.64) return 'wraith';
+    if (r < 0.8) return 'gravemaw';
+    if (r < 0.92) return 'skeleton_archer';
+    return 'revenant_knight';
   }
-  if (r < 0.18) return 'skeleton_warrior';
-  if (r < 0.34) return 'hellhound';
-  if (r < 0.52) return 'wraith';
-  if (r < 0.7) return 'demon_brute';
-  if (r < 0.85) return 'skeleton_archer';
-  return 'imp';
+  if (r < 0.2) return 'skeleton_warrior';
+  if (r < 0.4) return 'wraith';
+  if (r < 0.58) return 'gravemaw';
+  if (r < 0.78) return 'revenant_knight';
+  return 'skeleton_archer';
 }

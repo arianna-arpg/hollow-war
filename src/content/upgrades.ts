@@ -2,7 +2,7 @@ import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec, SkillTag } fr
 import { MAX_ART_RANK } from './skills.ts';
 
 export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'oath';
-export type UpgradeCategory = 'art' | 'inscription' | 'doctrine' | 'oath';
+export type UpgradeCategory = 'art' | 'inscription' | 'passive' | 'oath';
 
 export interface UpgradeCardDef {
   id: string;
@@ -32,6 +32,16 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     artId: 'firebolt',
     description: 'Master Firebolt (or deepen its rank for +22% More Art Damage).',
     tags: ['spell', 'projectile', 'fire'],
+  },
+  {
+    id: 'art_fireball',
+    name: 'Art: Fireball',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'fireball',
+    description: 'Master Fireball (or deepen its rank for +22% More Art Damage & +12% Blast Area).',
+    tags: ['spell', 'projectile', 'aoe', 'fire'],
   },
   {
     id: 'art_flame_arrow',
@@ -380,11 +390,11 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     tags: ['projectile'],
   },
 
-  // === DOCTRINES & CONDUITS ===
+  // === PASSIVES & CONDUITS ===
   {
     id: 'doc_pact_constructs',
-    name: 'Doctrine of the Pact',
-    category: 'doctrine',
+    name: 'Pact of Constructs',
+    category: 'passive',
     rarity: 'rare',
     maxStacks: 2,
     description: 'Empowers bound hosts and war-engines: +30% Minion, Totem & Trap Damage and +15% Area.',
@@ -398,8 +408,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_lodestone',
-    name: 'Doctrine of the Lodestone',
-    category: 'doctrine',
+    name: 'Lodestone',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Draws Mortal Essence from afar: +65 Pickup Radius, +10% Move Speed, +15% Essence Gain.',
@@ -412,8 +422,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_tempered_steel',
-    name: 'Doctrine of Tempered Steel',
-    category: 'doctrine',
+    name: 'Tempered Steel',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Hones every edge and shaft: +25% Physical Damage, +12 Added Physical, +10% Armor Pen.',
@@ -426,8 +436,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_storm_eye',
-    name: 'Doctrine of the Storm-Eye',
-    category: 'doctrine',
+    name: 'Storm-Eye',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Quickens the tempest: +25% Lightning Damage, +18% Shock Chance, +10% Cooldown Recovery.',
@@ -440,8 +450,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_hoarfrost',
-    name: 'Doctrine of Hoarfrost',
-    category: 'doctrine',
+    name: 'Hoarfrost',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Binds winter to your breath: +25% Cold Damage, +12 Added Cold, +25% Chill Chance.',
@@ -454,8 +464,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_duelist',
-    name: 'Doctrine of the Duelist',
-    category: 'doctrine',
+    name: "Duelist's Edge",
+    category: 'passive',
     rarity: 'rare',
     maxStacks: 3,
     description: 'Every opening is fatal: +10% Crit Chance and +25% Crit Multiplier.',
@@ -467,8 +477,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_ember_forged',
-    name: 'Doctrine of the Furnace',
-    category: 'doctrine',
+    name: 'Ember-Forged Core',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Kindles every strike with lingering ash: +25% Fire Damage and +12 Added Fire Damage.',
@@ -480,8 +490,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_arcane_velocity',
-    name: 'Doctrine of Alacrity',
-    category: 'doctrine',
+    name: 'Arcane Velocity',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Sharpens your cadence in the fray: +18% Cast Speed, +15% Attack Speed, +8% Move Speed.',
@@ -495,7 +505,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   {
     id: 'doc_glacial_reservoir',
     name: 'Conduit: Glacial Reservoir',
-    category: 'doctrine',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Draws winter stillness into your Aegis: +45 Maximum Ward, +5 Ward Regen/s, +15% Cold Damage.',
@@ -508,8 +518,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_vital_bastion',
-    name: 'Doctrine of Iron Marrow',
-    category: 'doctrine',
+    name: 'Iron Marrow',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 3,
     description: 'Hardens bone and mail alike: +35 Maximum Life, +1.5 Life Regen/s, +15 Armor.',
@@ -522,8 +532,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_piercing_salvo',
-    name: 'Doctrine of the Longbow',
-    category: 'doctrine',
+    name: 'Longbow Mastery',
+    category: 'passive',
     rarity: 'rare',
     maxStacks: 2,
     description: 'Teaches projectiles to punch through ranks: +1 Pierce, +1 Extra Projectile, +15% Projectile Damage.',
@@ -537,7 +547,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   {
     id: 'doc_avatar_of_ash',
     name: 'Conduit: Avatar of Ash',
-    category: 'doctrine',
+    category: 'passive',
     rarity: 'mythic',
     maxStacks: 1,
     description: 'Turns steel and frost alike to cinder: convert 50% of Physical & Cold to Fire, and gain 15% of Fire as Extra Chaos.',
@@ -551,7 +561,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   {
     id: 'doc_cast_on_crit',
     name: 'Conduit: Spark on Precision',
-    category: 'doctrine',
+    category: 'passive',
     rarity: 'mythic',
     maxStacks: 1,
     description: 'Every critical strike answers with flame: 55% chance on Crit to loose a homing Firebolt (0.2s ICD).',
@@ -572,7 +582,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   {
     id: 'doc_kinetic_dynamo',
     name: 'Conduit: Kinetic Dynamo',
-    category: 'doctrine',
+    category: 'passive',
     rarity: 'rare',
     maxStacks: 1,
     description: 'While Moving: +25% More Damage and +15% Crit Chance. While Stationary: +30 Armor.',
@@ -585,8 +595,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_toxic_catalyst',
-    name: 'Doctrine of the Plague-Bearer',
-    category: 'doctrine',
+    name: 'Plague-Bearer',
+    category: 'passive',
     rarity: 'rare',
     maxStacks: 2,
     description: 'Deepens every lingering affliction: +35% Ailment/DoT Damage, +25% Poison & Bleed Chance, +10% Chaos Pen.',
@@ -600,8 +610,8 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
   {
     id: 'doc_soul_siphon',
-    name: 'Doctrine of the Barrow',
-    category: 'doctrine',
+    name: 'Barrow Siphon',
+    category: 'passive',
     rarity: 'common',
     maxStacks: 2,
     description: 'Gathers the spilled essence of the fallen: +2 Life on Kill, +4 Ward on Kill, +25 Pickup Radius.',

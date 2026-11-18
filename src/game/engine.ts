@@ -23,6 +23,7 @@ import type {
   Enemy,
   EquippedArt,
   FloatingText,
+  IncursionPortal,
   LightningArc,
   MinionEntity,
   NovaRing,
@@ -116,6 +117,7 @@ export class HollowWarEngine {
   minions: MinionEntity[] = [];
   totems: TotemEntity[] = [];
   traps: TrapEntity[] = [];
+  incursionPortals: IncursionPortal[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -124,7 +126,8 @@ export class HollowWarEngine {
 
   private spawnTimer = 0;
   private nextBossAt = 60;
-  private bossCount = 0;
+  private nextIncursionAt = 35;
+  private incursionCount = 0;
   private dotAccumulator = 0;
   private viewportW = 1280;
   private viewportH = 720;
@@ -152,15 +155,9 @@ export class HollowWarEngine {
     this.sheet = new StatSheet(HOLLOW_WAR_STAT_RULES);
     this.procs = new ProcRuntime();
 
-    this.sheet.setSource('vessel', found.mods);
     const archiveBonuses = getArchiveBonuses(this.archive);
     if (archiveBonuses.mods.length > 0) {
       this.sheet.setSource('archive', archiveBonuses.mods);
-    }
-    if (found.conversions) this.sheet.setConversions('vessel', found.conversions);
-    if (found.extras) this.sheet.setExtras('vessel', found.extras);
-    if (found.procs) {
-      for (const p of found.procs) this.procs.register(p);
     }
 
     this.arts = [];
@@ -207,6 +204,7 @@ export class HollowWarEngine {
     this.minions = [];
     this.totems = [];
     this.traps = [];
+    this.incursionPortals = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -218,13 +216,14 @@ export class HollowWarEngine {
     this.screenShake = 0;
     this.spawnTimer = 0.2;
     this.nextBossAt = 60;
-    this.bossCount = 0;
+    this.nextIncursionAt = 35;
+    this.incursionCount = 0;
     this.dotAccumulator = 0;
 
-    // Opening pack of Risen Ghouls & Ash Imps
+    // Opening pack of Undead (Risen Ghouls & Skeleton Warriors)
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2;
-      const arch = i % 2 === 0 ? 'ghoul' : 'imp';
+      const arch = i % 2 === 0 ? 'ghoul' : 'skeleton_warrior';
       this.enemies.push(createEnemy(arch, Math.cos(angle) * 340, Math.sin(angle) * 340, 0));
     }
 
@@ -428,7 +427,8 @@ export class HollowWarEngine {
             this.artId === 'frost_nova' ||
             this.artId === 'cinder_trap' ||
             this.artId === 'frost_trap' ||
-            this.artId === 'searing_bond'
+            this.artId === 'searing_bond' ||
+            this.artId === 'fireball'
           ) {
             mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
           }
@@ -484,6 +484,7 @@ export class HollowWarEngine {
     this.updateAilments(dt);
     this.updatePickups(dt);
     this.updateSpawner(dt);
+    this.updateIncursions(dt);
     this.updateVfx(dt);
   }
 
@@ -1467,12 +1468,80 @@ export class HollowWarEngine {
 
     if (this.elapsed >= this.nextBossAt) {
       this.nextBossAt += 60;
-      this.bossCount += 1;
-      const bossArch = this.bossCount % 2 === 1 ? 'lich' : 'demon_lord';
       const angle = Math.random() * Math.PI * 2;
       this.enemies.push(
-        createEnemy(bossArch, this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
+        createEnemy('lich', this.player.x + Math.cos(angle) * 440, this.player.y + Math.sin(angle) * 440, this.elapsed),
       );
+    }
+  }
+
+  private updateIncursions(dt: number): void {
+    if (this.elapsed >= this.nextIncursionAt) {
+      this.nextIncursionAt += 45;
+      this.incursionCount += 1;
+      const isMajor = this.incursionCount % 2 === 0;
+      const angle = Math.random() * Math.PI * 2;
+      const px = this.player.x + Math.cos(angle) * 280;
+      const py = this.player.y + Math.sin(angle) * 280;
+      this.incursionPortals.push({
+        id: nextEntityId++,
+        x: px,
+        y: py,
+        life: 11,
+        maxLife: 11,
+        spawnTimer: 0.4,
+        wavesLeft: isMajor ? 4 : 3,
+        isMajor,
+      });
+      this.floatingTexts.push({
+        x: this.player.x,
+        y: this.player.y - 38,
+        vy: -20,
+        text: isMajor ? 'MAJOR DEMONIC INCURSION!' : 'DEMONIC INCURSION PORTAL!',
+        color: '#f97316',
+        life: 1.8,
+        maxLife: 1.8,
+        scale: 1.2,
+      });
+    }
+
+    for (let i = this.incursionPortals.length - 1; i >= 0; i--) {
+      const portal = this.incursionPortals[i];
+      portal.life -= dt;
+      portal.spawnTimer -= dt;
+
+      if (portal.spawnTimer <= 0 && portal.wavesLeft > 0) {
+        portal.spawnTimer = 2.4;
+        portal.wavesLeft -= 1;
+
+        const imps = 3 + Math.min(3, Math.floor(this.elapsed / 50));
+        for (let k = 0; k < imps; k++) {
+          const a = Math.random() * Math.PI * 2;
+          const arch = k === 0 && this.elapsed > 45 ? 'demon_brute' : k % 2 === 0 ? 'imp' : 'hellhound';
+          this.enemies.push(
+            createEnemy(arch, portal.x + Math.cos(a) * 26, portal.y + Math.sin(a) * 26, this.elapsed),
+          );
+        }
+
+        if (portal.isMajor && portal.wavesLeft === 0) {
+          this.enemies.push(createEnemy('demon_lord', portal.x, portal.y, this.elapsed));
+        }
+      }
+
+      if (portal.life <= 0) {
+        // Portal seals and rewards a Lodestone Magnet or Essence cache
+        this.pickups.push({
+          id: nextEntityId++,
+          kind: 'magnet',
+          x: portal.x,
+          y: portal.y,
+          value: 1,
+          color: '#fde047',
+          radius: 8,
+          magnetized: false,
+        });
+        this.incursionPortals.splice(i, 1);
+      }
     }
   }
 

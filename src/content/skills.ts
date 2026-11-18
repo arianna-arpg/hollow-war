@@ -48,6 +48,11 @@ export interface InscriptionDef {
   conversions?: ConversionRule[];
   extras?: ExtraDamageRule[];
   echoChance?: number;
+  returnBoomerang?: boolean;
+  forceHoming?: boolean;
+  spreadScale?: number;
+  staggerOverride?: number;
+  splitOnHit?: number;
 }
 
 export const ARTS: Record<string, ArtDefinition> = {
@@ -55,33 +60,35 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'firebolt',
     name: 'Firebolt',
     description:
-      'Looses a lance of condensed cinder that streaks across the ash and sets struck flesh alight.',
+      'Looses a nimble lance of condensed cinder that streaks across the ash and sets struck flesh alight.',
     color: '#f97316',
     behavior: 'projectile',
     baseDamage: { fire: 22, physical: 6 },
     damageEffectiveness: 1.0,
-    baseCooldown: 0.6,
+    baseCooldown: 0.58,
     baseCritChance: 0.02,
     baseProjectiles: 1,
     baseRadius: 7,
     projectileSpeed: 550,
+    baseDuration: 1.5,
     tags: ['spell', 'projectile', 'fire'],
   },
   fireball: {
     id: 'fireball',
     name: 'Fireball',
     description:
-      'Hurls a heavy sphere of condensed flame that detonates on impact, scorching clustered foes in a fiery blast.',
+      'Hurls a heavy, slow-traveling sphere of condensed flame that detonates in a wide fiery blast on impact.',
     color: '#ea580c',
     behavior: 'projectile',
-    baseDamage: { fire: 28 },
-    damageEffectiveness: 1.2,
-    baseCooldown: 0.82,
+    baseDamage: { fire: 30 },
+    damageEffectiveness: 1.25,
+    baseCooldown: 0.86,
     baseCritChance: 0.04,
     baseProjectiles: 1,
-    baseRadius: 10,
-    projectileSpeed: 460,
-    explodeRadius: 82,
+    baseRadius: 11,
+    projectileSpeed: 370,
+    baseDuration: 1.05,
+    explodeRadius: 88,
     explodeScale: 0.75,
     tags: ['spell', 'projectile', 'aoe', 'fire'],
   },
@@ -89,7 +96,7 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'flame_arrow',
     name: 'Flame Arrow',
     description:
-      'Fires a flaming arrow that pierces up to 2 enemies and kindles fierce ignites.',
+      'Fires a swift flaming arrow that pierces up to 2 enemies across long range.',
     color: '#ff9646',
     behavior: 'projectile',
     baseDamage: { fire: 22, physical: 8 },
@@ -98,8 +105,8 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseCritChance: 0.05,
     baseProjectiles: 1,
     baseRadius: 5,
-    projectileSpeed: 620,
-    baseDuration: 1.4,
+    projectileSpeed: 650,
+    baseDuration: 1.6,
     basePierce: 2,
     tags: ['spell', 'projectile', 'fire'],
   },
@@ -125,7 +132,7 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'frostbolt',
     name: 'Frostbolt',
     description:
-      'Conjures a razor shard of winter-glass that chills targets and flies swiftly across the barrow.',
+      'Conjures razor shards of winter-glass that chill targets as they glide across the barrow.',
     color: '#38bdf8',
     behavior: 'projectile',
     baseDamage: { cold: 23 },
@@ -134,7 +141,8 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseCritChance: 0.05,
     baseProjectiles: 2,
     baseRadius: 6,
-    projectileSpeed: 610,
+    projectileSpeed: 440,
+    baseDuration: 1.35,
     tags: ['spell', 'projectile', 'cold'],
   },
   cleave: {
@@ -406,6 +414,55 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 118,
     tags: ['spell', 'trap', 'aoe', 'cold'],
+  },
+  arcane_missiles: {
+    id: 'arcane_missiles',
+    name: 'Arcane Missiles',
+    description:
+      'Launches a staggered salvo of 4 seeking arcane bolts that weave toward nearby enemies.',
+    color: '#818cf8',
+    behavior: 'projectile',
+    baseDamage: { lightning: 10, chaos: 8 },
+    damageEffectiveness: 0.75,
+    baseCooldown: 0.72,
+    baseCritChance: 0.05,
+    baseProjectiles: 4,
+    baseRadius: 5,
+    projectileSpeed: 540,
+    baseDuration: 1.45,
+    staggerDelay: 0.055,
+    homing: true,
+    tags: ['spell', 'projectile', 'lightning', 'chaos'],
+  },
+  shock_nova: {
+    id: 'shock_nova',
+    name: 'Shock Nova',
+    description:
+      'Unleashes a crackling ring of storm-light around your vessel, dealing Lightning damage and Shocking foes.',
+    color: '#fde047',
+    behavior: 'nova',
+    baseDamage: { lightning: 28 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 1.32,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 156,
+    tags: ['spell', 'aoe', 'nova', 'lightning'],
+  },
+  heavy_strike: {
+    id: 'heavy_strike',
+    name: 'Heavy Strike',
+    description:
+      'Delivers a crushing overhead blow in a tight frontal arc with heavy Armor Penetration and Critical impact.',
+    color: '#e2e8f0',
+    behavior: 'sweep',
+    baseDamage: { physical: 44 },
+    damageEffectiveness: 1.4,
+    baseCooldown: 0.92,
+    baseCritChance: 0.1,
+    baseProjectiles: 1,
+    baseRadius: 102,
+    tags: ['attack', 'aoe', 'physical'],
   },
 };
 
@@ -808,6 +865,70 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
       { stat: 'damage', kind: 'more', value: -0.15 },
     ],
   },
+  boomerang: {
+    id: 'boomerang',
+    name: 'Inscription of the Boomerang',
+    shortName: 'Boomerang',
+    description: 'Projectiles curve back to you after half their flight, striking foes on the return pass (+20% Range/Duration, 15% Less Damage).',
+    color: '#34d399',
+    requiredTags: ['projectile'],
+    returnBoomerang: true,
+    mods: [
+      { stat: 'projectileDuration', kind: 'inc', value: 0.2 },
+      { stat: 'damage', kind: 'more', value: -0.15, tags: ['projectile'] },
+    ],
+  },
+  seeker: {
+    id: 'seeker',
+    name: 'Inscription of the Seeker',
+    shortName: 'Seeker',
+    description: 'Grants homing guidance to projectiles and +20% Range/Duration, at the cost of 18% Less Projectile Speed.',
+    color: '#c084fc',
+    requiredTags: ['projectile'],
+    forceHoming: true,
+    mods: [
+      { stat: 'projectileDuration', kind: 'inc', value: 0.2 },
+      { stat: 'projectileSpeed', kind: 'more', value: -0.18 },
+    ],
+  },
+  choked_spread: {
+    id: 'choked_spread',
+    name: 'Inscription of Choked Spread',
+    shortName: 'Choked',
+    description: 'Tightens projectile spread by 55% into a focused beam and grants +25% Projectile Speed, but -15% Area.',
+    color: '#fbbf24',
+    requiredTags: ['projectile'],
+    spreadScale: 0.45,
+    mods: [
+      { stat: 'projectileSpeed', kind: 'inc', value: 0.25 },
+      { stat: 'area', kind: 'inc', value: -0.15 },
+    ],
+  },
+  firing_line: {
+    id: 'firing_line',
+    name: 'Inscription of the Firing Line',
+    shortName: 'Firing Line',
+    description: 'Staggers projectiles into a rapid sequential stream (+20% Attack & Cast Speed), at the cost of 14% Less Damage.',
+    color: '#f97316',
+    requiredTags: ['projectile'],
+    staggerOverride: 0.045,
+    spreadScale: 0.25,
+    mods: [
+      { stat: 'attackSpeed', kind: 'inc', value: 0.2 },
+      { stat: 'castSpeed', kind: 'inc', value: 0.2 },
+      { stat: 'damage', kind: 'more', value: -0.14, tags: ['projectile'] },
+    ],
+  },
+  cascade: {
+    id: 'cascade',
+    name: 'Inscription of Cascade',
+    shortName: 'Cascade',
+    description: 'Projectiles splinter into 2 secondary shards on impact, at the cost of 22% Less Projectile Damage.',
+    color: '#67e8f9',
+    requiredTags: ['projectile'],
+    splitOnHit: 2,
+    mods: [{ stat: 'damage', kind: 'more', value: -0.22, tags: ['projectile'] }],
+  },
 };
 
 export interface ArtRankStep {
@@ -927,6 +1048,18 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
         ],
       };
     }
+
+    case 'arcane_missiles':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+2 Missiles, +8% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 2 }, { stat: 'damage', kind: 'more', value: 0.08 }] };
+      return { summary: '+15% Cast Speed, +15% Projectile Speed, +10% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'projectileSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'shock_nova':
+      if (r % 2 === 0) return { summary: '+18% Area, +25% Shock Chance, +10% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.18 }, { stat: 'shockChance', kind: 'flat', value: 0.25 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+16% Cooldown Recovery, +10% Lightning Pen, +10% More Damage', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.16 }, { stat: 'lightningPen', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'heavy_strike':
+      if (r % 2 === 0) return { summary: '+15% Armor Pen, +10% Crit Chance, +12% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.15 }, { stat: 'critChance', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+15% Attack Speed, +28% Crit Multi, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'critMulti', kind: 'flat', value: 0.28 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
 
     default:
       return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };

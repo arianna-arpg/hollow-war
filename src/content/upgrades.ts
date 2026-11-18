@@ -243,6 +243,36 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     description: 'Master Frost Trap.',
     tags: ['spell', 'trap', 'aoe', 'cold'],
   },
+  {
+    id: 'art_arcane_missiles',
+    name: 'Art: Arcane Missiles',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'arcane_missiles',
+    description: 'Master Arcane Missiles.',
+    tags: ['spell', 'projectile', 'lightning', 'chaos'],
+  },
+  {
+    id: 'art_shock_nova',
+    name: 'Art: Shock Nova',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'shock_nova',
+    description: 'Master Shock Nova.',
+    tags: ['spell', 'aoe', 'nova', 'lightning'],
+  },
+  {
+    id: 'art_heavy_strike',
+    name: 'Art: Heavy Strike',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'heavy_strike',
+    description: 'Master Heavy Strike.',
+    tags: ['attack', 'aoe', 'physical'],
+  },
 
   // === PASSIVES & CONDUITS (Inscriptions are now offered dynamically per active Art!) ===
   {

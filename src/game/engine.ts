@@ -574,9 +574,17 @@ export class HollowWarEngine {
       const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
       const speed = (def.projectileSpeed ?? 520) * speedScale;
       const life = (def.baseDuration ?? 1.6) * durScale;
-      const spreadStep = count > 1 ? (def.homing ? 0.34 : def.id === 'fan_of_blades' ? 0.22 : 0.14) : 0;
+
+      const isBoomerang = art.inscriptions.some((i) => i.returnBoomerang);
+      const isHoming = def.homing || art.inscriptions.some((i) => i.forceHoming);
+      const spreadScale = art.inscriptions.reduce((s, i) => s * (i.spreadScale ?? 1), 1);
+      const staggerOverride = art.inscriptions.find((i) => i.staggerOverride !== undefined)?.staggerOverride;
+      const splitOnHit = art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0);
+
+      const baseSpread = def.homing ? 0.34 : def.id === 'fan_of_blades' ? 0.22 : 0.14;
+      const spreadStep = count > 1 ? baseSpread * spreadScale : 0;
       const startAngle = this.player.aimAngle - ((count - 1) * spreadStep) / 2;
-      const stagger = def.staggerDelay ?? 0;
+      const stagger = staggerOverride ?? def.staggerDelay ?? 0;
 
       for (let i = 0; i < count; i++) {
         const a = startAngle + i * spreadStep;
@@ -588,12 +596,14 @@ export class HollowWarEngine {
           radius: def.baseRadius * Math.sqrt(areaScale),
           color: def.color,
           artId: def.id,
-          pierceLeft: pierce,
+          pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
           life,
           hitIds: new Set<number>(),
-          homing: def.homing,
+          homing: isHoming,
           explodeRadius: def.explodeRadius ? def.explodeRadius * areaScale : undefined,
           explodeScale: def.explodeScale,
+          splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+          boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
           extraMods,
         };
         if (stagger > 0 && i > 0) {
@@ -1263,7 +1273,18 @@ export class HollowWarEngine {
         continue;
       }
 
-      if (p.homing && !p.fromEnemy && this.enemies.length > 0) {
+      if (p.boomerang) {
+        if (!p.boomerang.returned && p.life <= p.boomerang.maxLife * 0.5) {
+          p.boomerang.returned = true;
+          p.hitIds.clear(); // Reset hit list on return pass!
+        }
+        if (p.boomerang.returned) {
+          const speed = Math.max(240, Math.hypot(p.vx, p.vy));
+          const retAngle = Math.atan2(this.player.y - p.y, this.player.x - p.x);
+          p.vx = Math.cos(retAngle) * speed;
+          p.vy = Math.sin(retAngle) * speed;
+        }
+      } else if (p.homing && !p.fromEnemy && this.enemies.length > 0) {
         let nearest: Enemy | null = null;
         let best = 450;
         for (const e of this.enemies) {
@@ -1336,6 +1357,29 @@ export class HollowWarEngine {
               if (Math.hypot(other.x - p.x, other.y - p.y) <= p.explodeRadius + other.radius) {
                 this.applyArtHit(other, def, splashMods, art);
               }
+            }
+          }
+
+          if (p.splitOnHit && p.splitOnHit > 0) {
+            const baseA = Math.atan2(p.vy, p.vx);
+            const shardMods: Modifier[] = [...mods, { stat: 'damage', kind: 'more', value: -0.45 }];
+            for (let s = 0; s < p.splitOnHit; s++) {
+              const offset = s === 0 ? -0.45 : 0.45;
+              const sa = baseA + offset;
+              this.projectiles.push({
+                id: nextEntityId++,
+                x: p.x,
+                y: p.y,
+                vx: Math.cos(sa) * 480,
+                vy: Math.sin(sa) * 480,
+                radius: Math.max(3.5, p.radius * 0.72),
+                color: p.color,
+                artId: p.artId,
+                pierceLeft: 0,
+                life: 0.65,
+                hitIds: new Set([e.id]),
+                extraMods: shardMods,
+              });
             }
           }
 

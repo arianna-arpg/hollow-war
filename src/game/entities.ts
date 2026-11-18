@@ -78,6 +78,11 @@ export interface Projectile {
   homing?: boolean;
   explodeRadius?: number;
   explodeScale?: number;
+  splitOnHit?: number;
+  boomerang?: {
+    maxLife: number;
+    returned: boolean;
+  };
   spiral?: {
     originX: number;
     originY: number;

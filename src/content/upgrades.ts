@@ -201,7 +201,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'split_volley',
-    description: 'Etch onto a Projectile Art: +2 Projectiles, at the cost of 15% Less Projectile Damage.',
+    description: 'Etch onto a Projectile Art: +2 Projectiles, at the cost of 18% Less Projectile Damage.',
     tags: ['projectile'],
   },
   {
@@ -210,7 +210,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'combustion',
-    description: 'Etch onto any Art: +45% Ignite Chance, +25% More Fire Damage, +10% Fire Penetration.',
+    description: 'Etch onto any Art: +45% Ignite Chance, +25% More Fire Damage, +10% Fire Penetration, but -25% Crit Multiplier.',
     tags: ['fire', 'dot'],
   },
   {
@@ -219,7 +219,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'forking_arc',
-    description: 'Etch onto a Chain Art: +2 Chain Count and +15% Lightning Penetration.',
+    description: 'Etch onto a Chain Art: +2 Chain Count and +15% Lightning Penetration, but 15% Less Art Damage.',
     tags: ['chain', 'lightning'],
   },
   {
@@ -228,7 +228,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'mythic',
     inscriptionId: 'void_infusion',
-    description: 'Etch onto any Art: Gain 25% of Physical & Elemental Damage as Extra Chaos.',
+    description: 'Etch onto any Art: Gain 25% of Physical & Elemental Damage as Extra Chaos, but 12% Less Attack & Cast Speed.',
     tags: ['chaos'],
   },
   {
@@ -237,7 +237,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'concentrated_core',
-    description: 'Etch onto an Area Art: +35% More Area Damage, -15% Area of Effect.',
+    description: 'Etch onto an Area Art: +35% More Area Damage, -20% Area of Effect.',
     tags: ['aoe'],
   },
   {
@@ -246,7 +246,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'mythic',
     inscriptionId: 'spell_echo',
-    description: 'Etch onto a Spell Art: 40% chance to Echo immediately, +12% Cast Speed.',
+    description: 'Etch onto a Spell Art: Doublecasts the Spell (100% Echo), at the cost of 28% Less Cast Speed.',
     tags: ['spell'],
   },
   {
@@ -255,7 +255,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'crimson_leech',
-    description: 'Etch onto any Art: +4% Life Leech, +20% Bleed Chance, +18% More Damage on Full Life.',
+    description: 'Etch onto any Art: +4% Life Leech, +20% Bleed Chance, +18% More Damage on Full Life, but -20% Crit Multiplier.',
     tags: ['physical'],
   },
   {
@@ -264,7 +264,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     category: 'inscription',
     rarity: 'rare',
     inscriptionId: 'ruthless_precision',
-    description: 'Etch onto any Art: +12% Base Crit Chance and +35% Crit Multiplier.',
+    description: 'Etch onto any Art: +14% Base Crit Chance and +40% Crit Multiplier, but 15% Less Attack & Cast Speed.',
     tags: ['attack', 'spell'],
   },
 

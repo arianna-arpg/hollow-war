@@ -2,7 +2,9 @@ import type { StatSheet } from './stat-sheet.ts';
 import {
   DAMAGE_TYPES,
   type AilmentType,
+  type ConversionRule,
   type DamageType,
+  type ExtraDamageRule,
   type HitReceipt,
   type Modifier,
   type SkillDpsPreview,
@@ -58,6 +60,8 @@ export function computeOutgoingByType(
   sheet: StatSheet,
   spec: SkillDamageSpec,
   extraMods: readonly Modifier[] = [],
+  extraConversions: readonly ConversionRule[] = [],
+  extraExtras: readonly ExtraDamageRule[] = [],
 ): Record<DamageType, number> {
   const eff = spec.damageEffectiveness ?? 1;
   const raw: Record<DamageType, number> = {
@@ -74,7 +78,7 @@ export function computeOutgoingByType(
     raw[dt] = Math.max(0, base + added);
   }
 
-  // Step 1: Elemental/Damage Conversions
+  // Step 1: Elemental/Damage Conversions (sheet + per-Art Inscription conversions)
   const converted: Record<DamageType, number> = {
     physical: 0,
     fire: 0,
@@ -85,21 +89,34 @@ export function computeOutgoingByType(
   for (const dt of DAMAGE_TYPES) {
     const amount = raw[dt];
     if (amount <= 0) continue;
-    const convs = sheet.getConversionsFor(dt, spec.tags);
+    const sheetConvs = sheet.getConversionsFor(dt, spec.tags);
+    const localConvs = extraConversions
+      .filter((c) => c.from === dt && c.ratio > 0 && (!c.when || sheet.hasCondition(c.when)))
+      .map((c) => ({ to: c.to, ratio: c.ratio }));
+    const allConvs = [...sheetConvs, ...localConvs];
+    const totalRatio = allConvs.reduce((s, c) => s + c.ratio, 0);
+    const scale = totalRatio > 1 ? 1 / totalRatio : 1;
+
     let used = 0;
-    for (const c of convs) {
-      converted[c.to] += amount * c.ratio;
-      used += c.ratio;
+    for (const c of allConvs) {
+      const r = c.ratio * scale;
+      converted[c.to] += amount * r;
+      used += r;
     }
     converted[dt] += amount * Math.max(0, 1 - used);
   }
 
-  // Step 2: Gain % as Extra Damage
+  // Step 2: Gain % as Extra Damage (sheet + per-Art Inscription extras)
   const withExtra: Record<DamageType, number> = { ...converted };
   for (const dt of DAMAGE_TYPES) {
     const amount = converted[dt];
     if (amount <= 0) continue;
-    const extras = sheet.getExtrasFor(dt, spec.tags);
+    const extras = [
+      ...sheet.getExtrasFor(dt, spec.tags),
+      ...extraExtras
+        .filter((e) => e.from === dt && e.ratio > 0 && (!e.when || sheet.hasCondition(e.when)))
+        .map((e) => ({ to: e.to, ratio: e.ratio })),
+    ];
     for (const ex of extras) {
       withExtra[ex.to] += amount * ex.ratio;
     }
@@ -131,8 +148,10 @@ export function resolveHit(
   defender: DefenderSpec,
   rng: () => number = Math.random,
   extraMods: readonly Modifier[] = [],
+  extraConversions: readonly ConversionRule[] = [],
+  extraExtras: readonly ExtraDamageRule[] = [],
 ): Omit<HitReceipt, 'killed'> {
-  const outgoing = computeOutgoingByType(sheet, spec, extraMods);
+  const outgoing = computeOutgoingByType(sheet, spec, extraMods, extraConversions, extraExtras);
   const variance = spec.variance ?? 0.12;
   const roll = 1 + (rng() * 2 - 1) * variance;
 
@@ -209,8 +228,11 @@ export function previewSkillDps(
   spec: SkillDamageSpec,
   extraMods: readonly Modifier[] = [],
   baseProjectiles = 1,
+  extraConversions: readonly ConversionRule[] = [],
+  extraExtras: readonly ExtraDamageRule[] = [],
+  echoMultiplier = 1,
 ): SkillDpsPreview {
-  const byType = computeOutgoingByType(sheet, spec, extraMods);
+  const byType = computeOutgoingByType(sheet, spec, extraMods, extraConversions, extraExtras);
   const rawAvg = DAMAGE_TYPES.reduce((sum, dt) => sum + byType[dt], 0);
   const variance = spec.variance ?? 0.12;
 
@@ -230,7 +252,7 @@ export function previewSkillDps(
   const projectilesOrHits = baseProjectiles + projBonus;
 
   const avgHit = rawAvg * avgCritFactor;
-  const estimatedDps = avgHit * castsPerSecond * projectilesOrHits;
+  const estimatedDps = avgHit * castsPerSecond * projectilesOrHits * echoMultiplier;
 
   return {
     minHit: rawAvg * (1 - variance),

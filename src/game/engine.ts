@@ -427,7 +427,18 @@ export class HollowWarEngine {
 
   getArtPreview(art: EquippedArt): SkillDpsPreview {
     const def = ARTS[art.artId];
-    return previewSkillDps(this.sheet, def, this.getArtExtraMods(art), def.baseProjectiles);
+    const extraConvs = art.inscriptions.flatMap((i) => i.conversions ?? []);
+    const extraExtras = art.inscriptions.flatMap((i) => i.extras ?? []);
+    const echoMult = 1 + art.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
+    return previewSkillDps(
+      this.sheet,
+      def,
+      this.getArtExtraMods(art),
+      def.baseProjectiles,
+      extraConvs,
+      extraExtras,
+      echoMult,
+    );
   }
 
   getTotalEstimatedDps(): number {
@@ -827,6 +838,9 @@ export class HollowWarEngine {
   ): void {
     if (enemy.life <= 0) return;
 
+    const extraConvs = art ? art.inscriptions.flatMap((i) => i.conversions ?? []) : [];
+    const extraExtras = art ? art.inscriptions.flatMap((i) => i.extras ?? []) : [];
+
     const hasShock = enemy.ailments.some((a) => a.type === 'shock');
     const receipt = resolveHit(
       this.sheet,
@@ -838,18 +852,11 @@ export class HollowWarEngine {
       },
       Math.random,
       extraMods,
+      extraConvs,
+      extraExtras,
     );
 
-    let total = receipt.totalDamage;
-    if (art) {
-      for (const ins of art.inscriptions) {
-        if (ins.extras) {
-          for (const ex of ins.extras) {
-            total += (receipt.byType[ex.from] ?? 0) * ex.ratio;
-          }
-        }
-      }
-    }
+    const total = receipt.totalDamage;
 
     enemy.life -= total;
     enemy.hitFlash = 0.1;
@@ -1502,13 +1509,30 @@ export class HollowWarEngine {
     for (const ar of this.arts) {
       const def = ARTS[ar.artId];
       const extraMods = [...this.getArtExtraMods(ar)];
+      const extraConvs = ar.inscriptions.flatMap((i) => i.conversions ?? []);
+      const extraExtras = ar.inscriptions.flatMap((i) => i.extras ?? []);
+      let echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
+
       if (card.category === 'art' && card.artId === ar.artId) {
         extraMods.push({ stat: 'damage', kind: 'more', value: 0.22 });
       } else if (card.category === 'inscription' && card.inscriptionId && previewTargetId === ar.artId) {
         const ins = INSCRIPTIONS[card.inscriptionId];
-        if (ins) extraMods.push(...ins.mods);
+        if (ins) {
+          extraMods.push(...ins.mods);
+          if (ins.conversions) extraConvs.push(...ins.conversions);
+          if (ins.extras) extraExtras.push(...ins.extras);
+          if (ins.echoChance) echoMult += ins.echoChance;
+        }
       }
-      afterDps += previewSkillDps(forked, def, extraMods, def.baseProjectiles).estimatedDps;
+      afterDps += previewSkillDps(
+        forked,
+        def,
+        extraMods,
+        def.baseProjectiles,
+        extraConvs,
+        extraExtras,
+        echoMult,
+      ).estimatedDps;
     }
 
     if (card.category === 'art' && card.artId && !this.arts.some((a) => a.artId === card.artId)) {

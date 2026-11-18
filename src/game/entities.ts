@@ -22,7 +22,11 @@ export type EnemyArchetype =
   | 'ghoul'
   | 'skeleton_warrior'
   | 'skeleton_archer'
+  | 'skeleton_mage'
+  | 'barrow_watchman'
+  | 'skeletal_mortarman'
   | 'wraith'
+  | 'blade_wraith'
   | 'gravemaw'
   | 'revenant_knight'
   | 'imp'
@@ -199,4 +203,9 @@ export interface GroundZone {
   maxLife: number;
   tickTimer: number;
   color: string;
+}
+
+export interface PendingEcho {
+  artId: string;
+  delay: number;
 }

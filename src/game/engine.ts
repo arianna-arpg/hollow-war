@@ -29,6 +29,7 @@ import type {
   MinionEntity,
   NovaRing,
   Particle,
+  PendingEcho,
   Pickup,
   Projectile,
   SweepArc,
@@ -120,6 +121,7 @@ export class HollowWarEngine {
   traps: TrapEntity[] = [];
   groundZones: GroundZone[] = [];
   incursionPortals: IncursionPortal[] = [];
+  pendingEchoes: PendingEcho[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -208,6 +210,7 @@ export class HollowWarEngine {
     this.traps = [];
     this.groundZones = [];
     this.incursionPortals = [];
+    this.pendingEchoes = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -470,6 +473,7 @@ export class HollowWarEngine {
     this.updatePlayer(dt);
     this.updateConditions(Math.hypot(this.player.vx, this.player.vy) > 15);
     this.updateArts(dt);
+    this.updateEchoes(dt);
     this.updateMinions(dt);
     this.updateTotems(dt);
     this.updateTraps(dt);
@@ -522,7 +526,22 @@ export class HollowWarEngine {
 
         const echoIns = art.inscriptions.find((s) => s.echoChance);
         if (echoIns?.echoChance && Math.random() < echoIns.echoChance) {
-          this.castArt(art, def, extraMods);
+          this.pendingEchoes.push({ artId: art.artId, delay: 0.14 });
+        }
+      }
+    }
+  }
+
+  private updateEchoes(dt: number): void {
+    for (let i = this.pendingEchoes.length - 1; i >= 0; i--) {
+      const echo = this.pendingEchoes[i];
+      echo.delay -= dt;
+      if (echo.delay <= 0) {
+        this.pendingEchoes.splice(i, 1);
+        const art = this.arts.find((a) => a.artId === echo.artId);
+        const def = ARTS[echo.artId];
+        if (art && def) {
+          this.castArt(art, def, this.getArtExtraMods(art));
         }
       }
     }
@@ -1411,7 +1430,13 @@ export class HollowWarEngine {
       const dist = Math.max(1, Math.hypot(dx, dy));
       e.facing = Math.atan2(dy, dx);
 
-      if (e.archetype === 'skeleton_archer' && dist < 245) {
+      const isRanged =
+        e.archetype === 'skeleton_archer' ||
+        e.archetype === 'skeleton_mage' ||
+        e.archetype === 'barrow_watchman' ||
+        e.archetype === 'skeletal_mortarman';
+
+      if (isRanged && dist < 260) {
         e.vx = 0;
         e.vy = 0;
       } else {
@@ -1422,25 +1447,43 @@ export class HollowWarEngine {
       e.x += e.vx * dt;
       e.y += e.vy * dt;
 
-      if (e.archetype === 'skeleton_archer' || e.isBoss) {
+      if (isRanged || e.isBoss) {
         e.abilityTimer -= dt;
-        if (e.abilityTimer <= 0 && dist < 500) {
-          e.abilityTimer = e.isBoss ? 2.3 : 2.6;
+        if (e.abilityTimer <= 0 && dist < 540) {
+          e.abilityTimer = e.isBoss ? (this.elapsed > 480 ? 1.7 : 2.3) : e.archetype === 'skeleton_mage' ? 2.1 : 2.5;
           const baseAngle = Math.atan2(dy, dx);
-          const bolts = e.isBoss ? 5 : 1;
+          const bolts = e.isBoss
+            ? this.elapsed > 540
+              ? 12
+              : this.elapsed > 360
+                ? 8
+                : 5
+            : e.archetype === 'skeletal_mortarman'
+              ? 5
+              : e.archetype === 'skeleton_mage'
+                ? 3
+                : e.archetype === 'barrow_watchman'
+                  ? 2
+                  : 1;
+          const projSpeed = e.archetype === 'skeletal_mortarman' ? 195 : e.isBoss ? 255 : 240;
+          const spread = e.isBoss && bolts >= 8 ? (Math.PI * 2) / bolts : 0.24;
+
           for (let b = 0; b < bolts; b++) {
-            const a = baseAngle + (b - (bolts - 1) / 2) * 0.24;
+            const a =
+              e.isBoss && bolts >= 8
+                ? baseAngle + b * spread
+                : baseAngle + (b - (bolts - 1) / 2) * spread;
             this.projectiles.push({
               id: nextEntityId++,
               x: e.x,
               y: e.y,
-              vx: Math.cos(a) * 245,
-              vy: Math.sin(a) * 245,
-              radius: e.isBoss ? 7 : 5.5,
-              color: e.faction === 'demon' ? '#f97316' : '#c084fc',
+              vx: Math.cos(a) * projSpeed,
+              vy: Math.sin(a) * projSpeed,
+              radius: e.isBoss || e.archetype === 'skeletal_mortarman' ? 7.5 : 6,
+              color: '#ff2a55',
               artId: '',
               pierceLeft: 0,
-              life: 2.5,
+              life: 2.8,
               hitIds: new Set(),
               fromEnemy: true,
               enemyDamage: e.damage * 0.85,
@@ -1597,10 +1640,11 @@ export class HollowWarEngine {
 
   private updateSpawner(dt: number): void {
     this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0 && this.enemies.length < 160) {
-      const rate = Math.max(0.22, 1.05 - this.elapsed * 0.0045);
+    const maxEnemies = Math.min(240, 150 + Math.floor(this.elapsed / 7));
+    if (this.spawnTimer <= 0 && this.enemies.length < maxEnemies) {
+      const rate = Math.max(0.16, 1.05 - this.elapsed * 0.0016);
       this.spawnTimer = rate;
-      const batch = this.elapsed > 70 ? 2 : 1;
+      const batch = this.elapsed > 480 ? 3 : this.elapsed > 120 ? 2 : 1;
       for (let i = 0; i < batch; i++) {
         const angle = Math.random() * Math.PI * 2;
         const dist = Math.max(this.viewportW, this.viewportH) * 0.56 + 60;

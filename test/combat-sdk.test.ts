@@ -156,4 +156,31 @@ describe('Hollow War Combat SDK', () => {
       }
     }
   });
+
+  it('keeps Inscriptions strictly local to their slotted Art and staggers Spell Echo', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('magician'); // starts with firebolt
+    const frostbolt = engine.addOrRankArt('frostbolt');
+    const baseFrostPreview = engine.getArtPreview(frostbolt);
+
+    // Etch Spell Echo onto firebolt ONLY
+    const firebolt = engine.arts[0];
+    firebolt.inscriptions.push(INSCRIPTIONS.spell_echo);
+
+    // Frostbolt must remain completely unaffected by firebolt's Spell Echo
+    const afterFrostPreview = engine.getArtPreview(frostbolt);
+    expect(afterFrostPreview.castsPerSecond).toBeCloseTo(baseFrostPreview.castsPerSecond, 4);
+    expect(afterFrostPreview.estimatedDps).toBeCloseTo(baseFrostPreview.estimatedDps, 4);
+
+    // Triggering firebolt should queue a staggered echo in pendingEchoes, then fire after 0.14s
+    firebolt.cooldownTimer = 0;
+    engine.update(0.05);
+    expect(engine.pendingEchoes.length).toBe(1);
+    const beforeEchoCount = engine.projectiles.length;
+    engine.update(0.05);
+    engine.update(0.05);
+    engine.update(0.05);
+    expect(engine.pendingEchoes.length).toBe(0);
+    expect(engine.projectiles.length).toBeGreaterThan(beforeEchoCount);
+  });
 });

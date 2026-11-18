@@ -173,6 +173,110 @@ export function createEnemy(
         abilityTimer: 0,
         orbitHitCooldown: 0,
       };
+    case 'skeleton_mage':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Skeleton Mage',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 15,
+        life: 58 * hpScale,
+        maxLife: 58 * hpScale,
+        speed: 78,
+        damage: 16 * (1 + elapsedSeconds / 120),
+        xpValue: 28,
+        armor: 8,
+        resistances: { cold: 0.3, lightning: 0.25 },
+        color: '#818cf8',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 1.9,
+        orbitHitCooldown: 0,
+      };
+    case 'barrow_watchman':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Barrow Watchman',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 15,
+        life: 64 * hpScale,
+        maxLife: 64 * hpScale,
+        speed: 86,
+        damage: 16 * (1 + elapsedSeconds / 120),
+        xpValue: 26,
+        armor: 12,
+        resistances: { chaos: 0.3 },
+        color: '#8fd8a8',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.1,
+        orbitHitCooldown: 0,
+      };
+    case 'skeletal_mortarman':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Skeletal Mortarman',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 17,
+        life: 84 * hpScale,
+        maxLife: 84 * hpScale,
+        speed: 64,
+        damage: 21 * (1 + elapsedSeconds / 115),
+        xpValue: 34,
+        armor: 18,
+        resistances: { fire: 0.25 },
+        color: '#d6d3d1',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.4,
+        orbitHitCooldown: 0,
+      };
+    case 'blade_wraith':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Blade Wraith',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 14,
+        life: 52 * hpScale,
+        maxLife: 52 * hpScale,
+        speed: 165 + Math.min(45, elapsedSeconds * 0.15),
+        damage: 18 * (1 + elapsedSeconds / 120),
+        xpValue: 28,
+        armor: 4,
+        resistances: { physical: 0.25, cold: 0.3 },
+        color: '#38bdf8',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      };
     case 'lich':
       return {
         id: nextEnemyId++,
@@ -308,29 +412,59 @@ export function createEnemy(
   }
 }
 
-/** Core wave spawning draws exclusively from the Undead host; Demons surge from Incursion Portals. */
+/**
+ * Core wave spawning draws from the Undead host with time-gated escalation:
+ * 0:00+ Ghouls & Skeleton Warriors
+ * 1:30+ Wraiths & Gravemaws
+ * 3:00+ Skeletal Clerics & Revenant Knights
+ * 4:00+ Skeleton Mages & Barrow Watchmen (ranged spreads)
+ * 6:30+ Skeletal Mortarmen & Blade Wraiths
+ * 9:00+ Dense bullet-hell caster & elite mix
+ */
 export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyArchetype {
   const r = rng();
-  if (elapsed < 25) {
-    return r < 0.6 ? 'ghoul' : 'skeleton_warrior';
+  if (elapsed < 90) {
+    return r < 0.58 ? 'ghoul' : 'skeleton_warrior';
   }
-  if (elapsed < 55) {
-    if (r < 0.35) return 'ghoul';
-    if (r < 0.65) return 'skeleton_warrior';
-    if (r < 0.85) return 'wraith';
+  if (elapsed < 180) {
+    if (r < 0.32) return 'ghoul';
+    if (r < 0.62) return 'skeleton_warrior';
+    if (r < 0.84) return 'wraith';
     return 'gravemaw';
   }
-  if (elapsed < 95) {
-    if (r < 0.22) return 'ghoul';
-    if (r < 0.45) return 'skeleton_warrior';
-    if (r < 0.64) return 'wraith';
-    if (r < 0.8) return 'gravemaw';
-    if (r < 0.92) return 'skeleton_archer';
+  if (elapsed < 240) {
+    if (r < 0.2) return 'ghoul';
+    if (r < 0.44) return 'skeleton_warrior';
+    if (r < 0.62) return 'wraith';
+    if (r < 0.78) return 'gravemaw';
+    if (r < 0.9) return 'skeleton_archer';
     return 'revenant_knight';
   }
-  if (r < 0.2) return 'skeleton_warrior';
-  if (r < 0.4) return 'wraith';
-  if (r < 0.58) return 'gravemaw';
-  if (r < 0.78) return 'revenant_knight';
-  return 'skeleton_archer';
+  if (elapsed < 390) {
+    // 4:00+ Skeleton Mages & Barrow Watchmen enter the fray
+    if (r < 0.16) return 'skeleton_warrior';
+    if (r < 0.32) return 'wraith';
+    if (r < 0.48) return 'gravemaw';
+    if (r < 0.64) return 'revenant_knight';
+    if (r < 0.78) return 'skeleton_archer';
+    if (r < 0.9) return 'skeleton_mage';
+    return 'barrow_watchman';
+  }
+  if (elapsed < 540) {
+    // 6:30+ Skeletal Mortarmen & Blade Wraiths
+    if (r < 0.15) return 'revenant_knight';
+    if (r < 0.3) return 'gravemaw';
+    if (r < 0.46) return 'blade_wraith';
+    if (r < 0.62) return 'skeleton_mage';
+    if (r < 0.76) return 'barrow_watchman';
+    if (r < 0.9) return 'skeletal_mortarman';
+    return 'skeleton_archer';
+  }
+  // 9:00+ Bullet-hell escalation
+  if (r < 0.24) return 'skeleton_mage';
+  if (r < 0.44) return 'skeletal_mortarman';
+  if (r < 0.6) return 'barrow_watchman';
+  if (r < 0.76) return 'blade_wraith';
+  if (r < 0.9) return 'revenant_knight';
+  return 'gravemaw';
 }

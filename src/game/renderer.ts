@@ -131,6 +131,79 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       drawSkull(ctx, r * 0.42, r, baseColor, '#c084fc');
       break;
     }
+    case 'skeleton_mage': {
+      // Hooded robe + arcane staff + orbiting sigil + skull
+      ctx.fillStyle = flash ? '#ffffff' : '#312e81';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.12, 0, r * 0.82, r * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawRibcage(ctx, r, '#cbd5e1');
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.2, r * 0.68);
+      ctx.lineTo(r * 1.1, r * 0.68);
+      ctx.stroke();
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(r * 1.12, r * 0.68, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      drawSkull(ctx, r * 0.44, r, '#e2e8f0', '#38bdf8');
+      break;
+    }
+    case 'barrow_watchman': {
+      // Tatters + ribs + swung wick-green grave lantern + skull
+      ctx.fillStyle = flash ? '#ffffff' : '#1f2937';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.15, 0, r * 0.8, r * 0.68, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawRibcage(ctx, r, '#d6d3d1');
+      ctx.fillStyle = 'rgba(143, 216, 168, 0.35)';
+      ctx.beginPath();
+      ctx.arc(r * 0.9, r * 0.55, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8fd8a8';
+      ctx.beginPath();
+      ctx.arc(r * 0.9, r * 0.55, 4, 0, Math.PI * 2);
+      ctx.fill();
+      drawSkull(ctx, r * 0.42, r, '#e7e5e4', '#8fd8a8');
+      break;
+    }
+    case 'skeletal_mortarman': {
+      // Heavy mortar tube + bone frame + skull
+      drawRibcage(ctx, r, '#e7e5e4');
+      ctx.fillStyle = flash ? '#ffffff' : '#44403c';
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 1.6;
+      ctx.fillRect(-r * 0.2, -r * 0.78, r * 1.2, r * 0.45);
+      ctx.strokeRect(-r * 0.2, -r * 0.78, r * 1.2, r * 0.45);
+      drawSkull(ctx, r * 0.42, r, '#e7e5e4', '#fb923c');
+      break;
+    }
+    case 'blade_wraith': {
+      // Spectral shroud + paired curved daggers + cyan eyes
+      ctx.fillStyle = flash ? '#ffffff' : 'rgba(56, 189, 248, 0.35)';
+      ctx.beginPath();
+      ctx.moveTo(r * 0.7, 0);
+      ctx.lineTo(-r * 1.2, -r * 0.8);
+      ctx.lineTo(-r * 0.75, 0);
+      ctx.lineTo(-r * 1.2, r * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(r * 0.3, r * 0.55, r * 0.85, r * 0.16);
+      ctx.fillRect(r * 0.3, -r * 0.71, r * 0.85, r * 0.16);
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.arc(r * 0.2, 0, r * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.38, -r * 0.15, 2.2, 0, Math.PI * 2);
+      ctx.arc(r * 0.38, r * 0.15, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'wraith': {
       // Tattered shroud + spectral hood + wisps
       ctx.fillStyle = flash ? '#ffffff' : 'rgba(56, 189, 248, 0.28)';
@@ -691,12 +764,44 @@ export function renderGame(
   // Projectiles
   for (const p of engine.projectiles) {
     ctx.save();
-    ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (p.fromEnemy) {
+      // Unmistakable hollow-core crimson hazard projectile with directional tail
+      const spd = Math.max(1, Math.hypot(p.vx, p.vy));
+      const tx = p.x - (p.vx / spd) * (p.radius * 2.4);
+      const ty = p.y - (p.vy / spd) * (p.radius * 2.4);
+      ctx.strokeStyle = 'rgba(255, 42, 85, 0.55)';
+      ctx.lineWidth = p.radius * 0.9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+
+      ctx.shadowColor = '#ff2a55';
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = '#ff2a55';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius + 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#090b10';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(2, p.radius * 0.52), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffe4e6';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius + 1.2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 

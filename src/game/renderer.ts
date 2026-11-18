@@ -216,6 +216,51 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       drawSkull(ctx, r * 0.35, r, '#e9d5ff', '#f43f5e');
       break;
     }
+    case 'bone_warlock': {
+      // High-tier Bone Warlock: horned ossuary crown + glowing violet orb
+      ctx.fillStyle = flash ? '#ffffff' : '#4c1d95';
+      ctx.strokeStyle = '#e879f9';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.88, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawHorns(ctx, r * 0.9, '#d6d3d1');
+      drawSkull(ctx, r * 0.36, r * 1.05, '#f5f5f4', '#e879f9');
+      break;
+    }
+    case 'barrow_shambler': {
+      // Living enemy-factory: swollen moss-flesh sac with pulsing lime Pustules
+      ctx.fillStyle = flash ? '#ffffff' : '#3f6212';
+      ctx.strokeStyle = '#a3e635';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.92, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#bef264';
+      ctx.beginPath();
+      ctx.arc(-r * 0.3, -r * 0.25, r * 0.24, 0, Math.PI * 2);
+      ctx.arc(-r * 0.2, r * 0.3, r * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      drawSkull(ctx, r * 0.38, r * 0.85, '#d9f99d', '#facc15');
+      break;
+    }
+    case 'flesh_abomination': {
+      // Towering Undead Abomination: stitched crimson bulk + heavy cleaver arms
+      ctx.fillStyle = flash ? '#ffffff' : '#881337';
+      ctx.strokeStyle = '#fda4af';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.94, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(r * 0.35, -r * 0.72, r * 0.55, 4);
+      ctx.fillRect(r * 0.35, r * 0.58, r * 0.55, 4);
+      drawSkull(ctx, r * 0.42, r * 0.88, '#fecdd3', '#fbbf24');
+      break;
+    }
     case 'blade_wraith': {
       // Spectral shroud + paired curved daggers + cyan eyes
       ctx.fillStyle = flash ? '#ffffff' : 'rgba(56, 189, 248, 0.35)';
@@ -402,6 +447,23 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       ctx.beginPath();
       ctx.arc(r * 0.5, -r * 0.16, 2.2, 0, Math.PI * 2);
       ctx.arc(r * 0.5, r * 0.16, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'pit_abomination': {
+      drawWings(ctx, r * 1.15, flash ? '#ffffff' : '#450a0a');
+      ctx.fillStyle = flash ? '#ffffff' : '#991b1b';
+      ctx.strokeStyle = '#fb923c';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.92, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawHorns(ctx, r * 1.15, '#1c1917');
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath();
+      ctx.arc(r * 0.45, -r * 0.25, 3.2, 0, Math.PI * 2);
+      ctx.arc(r * 0.45, r * 0.25, 3.2, 0, Math.PI * 2);
       ctx.fill();
       break;
     }

@@ -27,6 +27,9 @@ export type EnemyArchetype =
   | 'barrow_watchman'
   | 'skeletal_mortarman'
   | 'void_acolyte'
+  | 'bone_warlock'
+  | 'barrow_shambler'
+  | 'flesh_abomination'
   | 'wraith'
   | 'blade_wraith'
   | 'gravemaw'
@@ -35,6 +38,7 @@ export type EnemyArchetype =
   | 'ash_whelp'
   | 'hellhound'
   | 'demon_brute'
+  | 'pit_abomination'
   | 'abyssal_foldwright'
   | 'lich'
   | 'demon_lord';

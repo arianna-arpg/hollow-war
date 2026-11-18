@@ -780,7 +780,9 @@ export class HollowWarEngine {
     const isBoomerang = Boolean(art?.inscriptions.some((i) => i.returnBoomerang));
     const isHoming = Boolean(def.homing || art?.inscriptions.some((i) => i.forceHoming));
     const splitOnHit = art ? art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0) : 0;
-    return { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit };
+    const spreadScale = art ? art.inscriptions.reduce((s, i) => s * (i.spreadScale ?? 1), 1) : 1;
+    const staggerOverride = art?.inscriptions.find((i) => i.staggerOverride !== undefined)?.staggerOverride;
+    return { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, spreadScale, staggerOverride };
   }
 
   private castArt(art: EquippedArt, def: ArtDefinition, extraMods: Modifier[]): void {
@@ -866,13 +868,13 @@ export class HollowWarEngine {
       const pierce =
         (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-      const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
+      const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, staggerOverride } = this.getProjTraits(art, def, extraMods);
       const speed = (def.projectileSpeed ?? 430) * speedScale;
       const life = (def.baseDuration ?? 1.5) * durScale;
+      const stagger = staggerOverride ?? def.staggerDelay ?? 0;
       for (let i = 0; i < count; i++) {
         const a = this.player.aimAngle + (i / count) * Math.PI * 2;
-        this.projectiles.push({
-          id: nextEntityId++,
+        const projData = {
           x: this.player.x + Math.cos(a) * 14,
           y: this.player.y + Math.sin(a) * 14,
           vx: Math.cos(a) * speed,
@@ -882,12 +884,17 @@ export class HollowWarEngine {
           artId: def.id,
           pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
           life,
-          hitIds: new Set(),
+          hitIds: new Set<number>(),
           homing: isHoming,
           splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
           boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
           extraMods,
-        });
+        };
+        if (stagger > 0 && i > 0) {
+          this.pendingProjectiles.push({ delay: i * stagger, proj: projData });
+        } else {
+          this.projectiles.push({ id: nextEntityId++, ...projData });
+        }
       }
     } else if (def.behavior === 'ground_zone') {
       if (this.groundZones.length >= 4) this.groundZones.shift();
@@ -2049,8 +2056,26 @@ export class HollowWarEngine {
         e.archetype === 'barrow_watchman' ||
         e.archetype === 'skeletal_mortarman' ||
         e.archetype === 'void_acolyte' ||
+        e.archetype === 'bone_warlock' ||
         e.archetype === 'abyssal_foldwright' ||
+        e.archetype === 'pit_abomination' ||
         e.archetype === 'ash_whelp';
+
+      // Barrow Shambler: living enemy-factory that periodically spawns undead fodder
+      if (e.archetype === 'barrow_shambler') {
+        e.abilityTimer -= dt;
+        if (e.abilityTimer <= 0 && this.enemies.length < 225) {
+          e.abilityTimer = 6.5;
+          this.spawnParticles(e.x, e.y, '#a3e635', 10, 110);
+          for (let s = 0; s < 2; s++) {
+            const sa = Math.random() * Math.PI * 2;
+            const spawnType: EnemyArchetype = Math.random() < 0.55 ? 'zombie' : 'ghoul';
+            this.enemies.push(
+              createEnemy(spawnType, e.x + Math.cos(sa) * 24, e.y + Math.sin(sa) * 24, this.elapsed),
+            );
+          }
+        }
+      }
 
       if (isRanged && dist < 260) {
         e.vx = 0;
@@ -2104,25 +2129,29 @@ export class HollowWarEngine {
               : this.elapsed > 360
                 ? 7
                 : 4
-            : e.archetype === 'skeletal_mortarman'
-              ? this.elapsed >= 510
-                ? 2
-                : 1
-              : e.archetype === 'skeleton_mage'
-                ? this.elapsed >= 570
-                  ? 3
-                  : this.elapsed >= 390
+            : e.archetype === 'bone_warlock'
+              ? this.elapsed >= 570
+                ? 4
+                : 3
+              : e.archetype === 'pit_abomination'
+                ? 3
+                : e.archetype === 'skeletal_mortarman'
+                  ? this.elapsed >= 510
                     ? 2
                     : 1
-                : e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
-                  ? this.elapsed >= 570
-                    ? 3
-                    : 2
-                  : e.archetype === 'barrow_watchman'
-                    ? this.elapsed >= 360
+                  : e.archetype === 'skeleton_mage'
+                    ? this.elapsed >= 420
                       ? 2
                       : 1
-                    : 1;
+                    : e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
+                      ? this.elapsed >= 570
+                        ? 3
+                        : 2
+                      : e.archetype === 'barrow_watchman'
+                        ? this.elapsed >= 360
+                          ? 2
+                          : 1
+                        : 1;
           const spread = e.isBoss && bolts >= 8 ? (Math.PI * 2) / bolts : 0.24;
 
           for (let b = 0; b < bolts; b++) {
@@ -2326,12 +2355,13 @@ export class HollowWarEngine {
     }
 
     if (this.elapsed >= this.nextSwarmSurgeAt) {
-      this.nextSwarmSurgeAt += 75;
+      this.nextSwarmSurgeAt += 55 + Math.random() * 40;
       const surgeCount = this.elapsed >= 420 ? 14 : 10;
       const ringDist = Math.max(this.viewportW, this.viewportH) * 0.56 + 70;
+      const useMixed = Math.random() < 0.65;
       for (let i = 0; i < surgeCount; i++) {
         const a = (i / surgeCount) * Math.PI * 2 + Math.random() * 0.18;
-        const arch: EnemyArchetype = i % 2 === 0 ? 'ghoul' : 'zombie';
+        const arch: EnemyArchetype = useMixed ? (i % 2 === 0 ? 'ghoul' : 'zombie') : 'ghoul';
         this.enemies.push(
           createEnemy(arch, this.player.x + Math.cos(a) * ringDist, this.player.y + Math.sin(a) * ringDist, this.elapsed),
         );
@@ -2353,11 +2383,13 @@ export class HollowWarEngine {
     const r = Math.random();
     if (!this.thronelord) {
       if (this.elapsed < 210) return r < 0.6 ? 'imp' : 'hellhound';
-      if (r < 0.35) return 'imp';
-      if (r < 0.62) return 'ash_whelp';
-      if (r < 0.85) return 'hellhound';
+      if (this.elapsed >= 330 && r < 0.18) return 'pit_abomination';
+      if (r < 0.38) return 'imp';
+      if (r < 0.64) return 'ash_whelp';
+      if (r < 0.86) return 'hellhound';
       return 'demon_brute';
     }
+    if (this.elapsed >= 330 && r < 0.16) return 'pit_abomination';
     switch (this.thronelord.id) {
       case 'malakor':
         if (r < 0.38) return 'ash_whelp';
@@ -2480,31 +2512,32 @@ export class HollowWarEngine {
 
   private updateWraithWalls(): void {
     if (this.elapsed < this.nextWraithWallAt) return;
-    this.nextWraithWallAt += 70;
+    this.nextWraithWallAt += 65 + Math.random() * 25;
 
-    // Spawn a full-screen off-screen marching phalanx of Grave Wraiths sweeping across the entire arena
-    const horizontal = Math.random() < 0.5;
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    const halfW = Math.max(640, this.viewportW * 0.5) + 140;
-    const halfH = Math.max(400, this.viewportH * 0.5) + 140;
-    const span = horizontal ? Math.max(720, this.viewportH) + 240 : Math.max(1280, this.viewportW) + 280;
+    // Spawn a full-screen off-screen marching phalanx of Grave Wraiths from any cardinal or diagonal direction
+    const marchAngle = (Math.floor(Math.random() * 8) * Math.PI) / 4;
+    const dirX = Math.cos(marchAngle);
+    const dirY = Math.sin(marchAngle);
+    const perpX = -dirY;
+    const perpY = dirX;
+    const halfDiag = Math.hypot(Math.max(640, this.viewportW * 0.5), Math.max(400, this.viewportH * 0.5)) + 140;
+    const span = Math.max(1280, this.viewportW, this.viewportH) + 320;
     const spacing = 38;
     const count = Math.ceil(span / spacing);
     const ranks = this.elapsed >= 300 ? 2 : 1;
-    const speed = horizontal ? 145 : 135;
-    const crossDist = (horizontal ? halfW * 2 : halfH * 2) + 220;
-    const life = crossDist / speed;
+    const speed = 142;
+    const life = (halfDiag * 2 + 240) / speed;
 
     for (let r = 0; r < ranks; r++) {
       const rankOffset = r * 42;
       for (let i = 0; i < count; i++) {
         const offset = (i - (count - 1) / 2) * spacing;
-        const sx = horizontal ? this.player.x - dir * (halfW + rankOffset) : this.player.x + offset;
-        const sy = horizontal ? this.player.y + offset : this.player.y - dir * (halfH + rankOffset);
+        const sx = this.player.x - dirX * (halfDiag + rankOffset) + perpX * offset;
+        const sy = this.player.y - dirY * (halfDiag + rankOffset) + perpY * offset;
         const wraith = createEnemy('wraith', sx, sy, this.elapsed);
         wraith.fixedVelocity = {
-          vx: horizontal ? dir * speed : 0,
-          vy: horizontal ? 0 : dir * speed,
+          vx: dirX * speed,
+          vy: dirY * speed,
           life,
         };
         this.enemies.push(wraith);
@@ -2676,6 +2709,8 @@ export class HollowWarEngine {
     return Object.values(INSCRIPTIONS).filter((ins) => {
       if (art.inscriptions.some((i) => i.id === ins.id)) return false;
       if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
+      if (ins.explodeOnExpire && !def.timedSummon) return false;
+      if (ins.minionCleaveRadius && (def.id === 'summon_flame_sprite' || def.id === 'shambling_horde')) return false;
       if (ins.relevantElements && ins.relevantElements.length > 0) {
         const hasRelevant = ins.relevantElements.some((dt) => outgoing[dt] > 0.1 || def.tags.includes(dt));
         if (!hasRelevant) return false;

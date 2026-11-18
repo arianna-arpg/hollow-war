@@ -513,16 +513,121 @@ export function createEnemy(
         abilityTimer: 2.3,
         orbitHitCooldown: 0,
       };
+    case 'barrow_shambler':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Barrow Shambler',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 22,
+        life: 145 * hpScale,
+        maxLife: 145 * hpScale,
+        speed: 52,
+        damage: 16 * (1 + elapsedSeconds / 145),
+        xpValue: 30,
+        armor: 16,
+        resistances: { chaos: 0.25, cold: 0.1 },
+        color: '#65a30d',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 4.5,
+        orbitHitCooldown: 0,
+      };
+    case 'flesh_abomination':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Flesh Abomination',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 26,
+        life: 240 * hpScale,
+        maxLife: 240 * hpScale,
+        speed: 62,
+        damage: 24 * (1 + elapsedSeconds / 125),
+        xpValue: 42,
+        armor: 26,
+        resistances: { physical: 0.2, chaos: 0.15 },
+        color: '#9f1239',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      };
+    case 'bone_warlock':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Bone Warlock',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 17,
+        life: 84 * hpScale,
+        maxLife: 84 * hpScale,
+        speed: 68,
+        damage: 15 * (1 + elapsedSeconds / 140),
+        xpValue: 26,
+        armor: 10,
+        resistances: { fire: 0.25, chaos: 0.25 },
+        color: '#c084fc',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 1.9,
+        orbitHitCooldown: 0,
+      };
+    case 'pit_abomination':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'demon',
+        isBoss: false,
+        name: 'Pit Abomination',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 25,
+        life: 220 * hpScale,
+        maxLife: 220 * hpScale,
+        speed: 68,
+        damage: 25 * (1 + elapsedSeconds / 125),
+        xpValue: 40,
+        armor: 30,
+        resistances: { fire: 0.35, physical: 0.15 },
+        color: '#991b1b',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.6,
+        orbitHitCooldown: 0,
+      };
   }
 }
 
 /**
  * Core wave spawning draws from the Undead host with time-gated escalation:
- * 0:00+ Ghouls & Skeleton Warriors
+ * 0:00+ Zombies, Ghouls & Skeleton Warriors
  * 1:30+ Wraiths & Gravemaws
- * 3:00+ Skeletal Clerics & Revenant Knights
- * 4:00+ Skeleton Mages & Barrow Watchmen (ranged spreads)
- * 6:30+ Skeletal Mortarmen & Blade Wraiths
+ * 3:00+ Skeleton Archers & Revenant Knights
+ * 4:00+ Skeleton Mages, Barrow Watchmen & Barrow Shamblers (4:30+)
+ * 6:00+ Flesh Abominations, Skeletal Mortarmen (6:30+) & Blade Wraiths
+ * 7:30+ Umbral Acolytes; 8:00+ Bone Warlocks
  * 9:00+ Dense bullet-hell caster & elite mix
  */
 export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyArchetype {
@@ -548,9 +653,10 @@ export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyA
     return 'revenant_knight';
   }
   if (elapsed < 390) {
-    // 4:00+ Skeleton Mages & Barrow Watchmen enter the fray
-    if (r < 0.16) return 'skeleton_warrior';
-    if (r < 0.32) return 'wraith';
+    // 4:00+ Skeleton Mages & Barrow Watchmen; 4:30+ Barrow Shamblers; 6:00+ Flesh Abominations
+    if (elapsed >= 360 && r < 0.1) return 'flesh_abomination';
+    if (elapsed >= 270 && r < 0.22) return 'barrow_shambler';
+    if (r < 0.34) return 'wraith';
     if (r < 0.48) return 'gravemaw';
     if (r < 0.64) return 'revenant_knight';
     if (r < 0.78) return 'skeleton_archer';
@@ -558,22 +664,24 @@ export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyA
     return 'barrow_watchman';
   }
   if (elapsed < 540) {
-    // 6:30+ Skeletal Mortarmen & Blade Wraiths; 7:30+ Umbral Acolytes
-    if (elapsed >= 450 && r < 0.14) return 'void_acolyte';
-    if (r < 0.15) return 'revenant_knight';
-    if (r < 0.3) return 'gravemaw';
-    if (r < 0.46) return 'blade_wraith';
-    if (r < 0.62) return 'skeleton_mage';
-    if (r < 0.76) return 'barrow_watchman';
+    // 6:30+ Skeletal Mortarmen & Blade Wraiths; 7:30+ Umbral Acolytes; 8:00+ Bone Warlocks
+    if (elapsed >= 480 && r < 0.12) return 'bone_warlock';
+    if (elapsed >= 450 && r < 0.24) return 'void_acolyte';
+    if (r < 0.34) return 'flesh_abomination';
+    if (r < 0.44) return 'barrow_shambler';
+    if (r < 0.56) return 'blade_wraith';
+    if (r < 0.68) return 'skeleton_mage';
+    if (r < 0.78) return 'barrow_watchman';
     if (r < 0.9) return 'skeletal_mortarman';
-    return 'skeleton_archer';
+    return 'revenant_knight';
   }
   // 9:00+ Bullet-hell escalation
-  if (r < 0.18) return 'void_acolyte';
-  if (r < 0.36) return 'skeleton_mage';
-  if (r < 0.54) return 'skeletal_mortarman';
-  if (r < 0.68) return 'barrow_watchman';
-  if (r < 0.82) return 'blade_wraith';
-  if (r < 0.92) return 'revenant_knight';
-  return 'gravemaw';
+  if (r < 0.16) return 'bone_warlock';
+  if (r < 0.32) return 'void_acolyte';
+  if (r < 0.46) return 'skeleton_mage';
+  if (r < 0.58) return 'skeletal_mortarman';
+  if (r < 0.68) return 'flesh_abomination';
+  if (r < 0.78) return 'barrow_shambler';
+  if (r < 0.88) return 'blade_wraith';
+  return 'barrow_watchman';
 }

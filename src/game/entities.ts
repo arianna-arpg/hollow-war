@@ -133,3 +133,33 @@ export interface Particle {
   life: number;
   maxLife: number;
 }
+
+export interface MinionEntity {
+  id: number;
+  artId: string;
+  kind: 'skeleton' | 'flame_sprite';
+  x: number;
+  y: number;
+  facing: number;
+  attackTimer: number;
+}
+
+export interface TotemEntity {
+  id: number;
+  artId: string;
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  fireTimer: number;
+}
+
+export interface TrapEntity {
+  id: number;
+  artId: string;
+  x: number;
+  y: number;
+  life: number;
+  triggerRadius: number;
+  blastRadius: number;
+}

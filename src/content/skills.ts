@@ -5,7 +5,7 @@ export const MAX_ACTIVE_ARTS = 4;
 export const MAX_ART_RANK = 8;
 export const MAX_INSCRIPTIONS_PER_ART = 2;
 
-export type ArtBehavior = 'projectile' | 'chain' | 'orbit' | 'nova' | 'sweep';
+export type ArtBehavior = 'projectile' | 'chain' | 'orbit' | 'nova' | 'sweep' | 'minion' | 'totem' | 'trap';
 
 export interface ArtDefinition extends SkillDamageSpec {
   id: string;
@@ -234,6 +234,68 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 152,
     tags: ['spell', 'aoe', 'nova', 'cold'],
+  },
+  raise_skeleton: {
+    id: 'raise_skeleton',
+    name: 'Raise Skeleton',
+    description:
+      'Calls forth bound Skeletal Vanguards from the barrow to hunt nearby foes with iron blades.',
+    color: '#c9bfa8',
+    behavior: 'minion',
+    baseDamage: { physical: 20 },
+    damageEffectiveness: 0.9,
+    baseCooldown: 0.85,
+    baseCritChance: 0.05,
+    baseProjectiles: 2,
+    baseRadius: 14,
+    tags: ['attack', 'minion', 'physical'],
+  },
+  flame_sprite: {
+    id: 'flame_sprite',
+    name: 'Bind Flame Sprite',
+    description:
+      'Binds hovering cinder sprites to your shoulder that spit searing firebolts at advancing hosts.',
+    color: '#fb923c',
+    behavior: 'minion',
+    baseDamage: { fire: 18 },
+    damageEffectiveness: 0.85,
+    baseCooldown: 0.78,
+    baseCritChance: 0.04,
+    baseProjectiles: 2,
+    baseRadius: 10,
+    projectileSpeed: 480,
+    tags: ['spell', 'minion', 'projectile', 'fire'],
+  },
+  storm_totem: {
+    id: 'storm_totem',
+    name: 'Storm Totem',
+    description:
+      'Plants a runic lightning obelisk that periodically discharges Chain Lightning into nearby ranks.',
+    color: '#38bdf8',
+    behavior: 'totem',
+    baseDamage: { lightning: 22 },
+    damageEffectiveness: 0.9,
+    baseCooldown: 3.4,
+    baseCritChance: 0.04,
+    baseProjectiles: 1,
+    baseRadius: 210,
+    baseChain: 2,
+    tags: ['spell', 'totem', 'chain', 'lightning'],
+  },
+  cinder_trap: {
+    id: 'cinder_trap',
+    name: 'Cinder Trap',
+    description:
+      'Arms volatile ember sigils underfoot that erupt in a fiery blast when demons or undead cross them.',
+    color: '#f43f5e',
+    behavior: 'trap',
+    baseDamage: { fire: 36, physical: 10 },
+    damageEffectiveness: 1.25,
+    baseCooldown: 1.45,
+    baseCritChance: 0.06,
+    baseProjectiles: 1,
+    baseRadius: 105,
+    tags: ['spell', 'trap', 'aoe', 'fire'],
   },
 };
 

@@ -153,6 +153,46 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     description: 'Master Frost Nova (or deepen its rank for +22% More Art Damage & +12% Area).',
     tags: ['spell', 'aoe', 'nova', 'cold'],
   },
+  {
+    id: 'art_raise_skeleton',
+    name: 'Art: Raise Skeleton',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'raise_skeleton',
+    description: 'Master Raise Skeleton (or deepen its rank for +1 Skeletal Vanguard & +22% More Art Damage).',
+    tags: ['attack', 'minion', 'physical'],
+  },
+  {
+    id: 'art_flame_sprite',
+    name: 'Art: Bind Flame Sprite',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'flame_sprite',
+    description: 'Master Bind Flame Sprite (or deepen its rank for +1 Flame Sprite & +22% More Art Damage).',
+    tags: ['spell', 'minion', 'projectile', 'fire'],
+  },
+  {
+    id: 'art_storm_totem',
+    name: 'Art: Storm Totem',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'storm_totem',
+    description: 'Master Storm Totem (or deepen its rank for +1 Chain & +22% More Art Damage).',
+    tags: ['spell', 'totem', 'chain', 'lightning'],
+  },
+  {
+    id: 'art_cinder_trap',
+    name: 'Art: Cinder Trap',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'cinder_trap',
+    description: 'Master Cinder Trap (or deepen its rank for +22% More Art Damage & +12% Blast Area).',
+    tags: ['spell', 'trap', 'aoe', 'fire'],
+  },
 
   // === INSCRIPTIONS (Player chooses which compatible Art to etch onto; max 2 per Art) ===
   {
@@ -229,6 +269,21 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
 
   // === DOCTRINES & CONDUITS ===
+  {
+    id: 'doc_pact_constructs',
+    name: 'Doctrine of the Pact',
+    category: 'doctrine',
+    rarity: 'rare',
+    maxStacks: 2,
+    description: 'Empowers bound hosts and war-engines: +30% Minion, Totem & Trap Damage and +15% Area.',
+    tags: ['minion', 'totem', 'trap'],
+    mods: [
+      { stat: 'damage', kind: 'inc', value: 0.3, tags: ['minion'] },
+      { stat: 'damage', kind: 'inc', value: 0.3, tags: ['totem'] },
+      { stat: 'damage', kind: 'inc', value: 0.3, tags: ['trap'] },
+      { stat: 'area', kind: 'inc', value: 0.15 },
+    ],
+  },
   {
     id: 'doc_lodestone',
     name: 'Doctrine of the Lodestone',

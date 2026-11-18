@@ -18,11 +18,14 @@ import type {
   EquippedArt,
   FloatingText,
   LightningArc,
+  MinionEntity,
   NovaRing,
   Particle,
   Pickup,
   Projectile,
   SweepArc,
+  TotemEntity,
+  TrapEntity,
 } from './entities.ts';
 import { createEnemy, pickArchetypeForTime, resetEnemyIds } from './spawner.ts';
 
@@ -99,6 +102,9 @@ export class HollowWarEngine {
   arcs: LightningArc[] = [];
   novas: NovaRing[] = [];
   sweeps: SweepArc[] = [];
+  minions: MinionEntity[] = [];
+  totems: TotemEntity[] = [];
+  traps: TrapEntity[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -180,6 +186,9 @@ export class HollowWarEngine {
     this.arcs = [];
     this.novas = [];
     this.sweeps = [];
+    this.minions = [];
+    this.totems = [];
+    this.traps = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -379,13 +388,15 @@ export class HollowWarEngine {
             value: (this.level - 1) * 0.22,
             source: `Rank ${this.level}`,
           });
-          if (this.artId === 'chain_lightning') {
+          if (this.artId === 'chain_lightning' || this.artId === 'storm_totem') {
             mods.push({ stat: 'chainCount', kind: 'flat', value: this.level - 1 });
           } else if (
             this.artId === 'hammer_of_judgment' ||
             this.artId === 'fan_of_blades' ||
             this.artId === 'frostbolt' ||
-            this.artId === 'soul_rend'
+            this.artId === 'soul_rend' ||
+            this.artId === 'raise_skeleton' ||
+            this.artId === 'flame_sprite'
           ) {
             mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
           } else if (
@@ -394,7 +405,8 @@ export class HollowWarEngine {
             this.artId === 'whirlwind' ||
             this.artId === 'consecration' ||
             this.artId === 'poison_nova' ||
-            this.artId === 'frost_nova'
+            this.artId === 'frost_nova' ||
+            this.artId === 'cinder_trap'
           ) {
             mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
           }
@@ -431,6 +443,9 @@ export class HollowWarEngine {
     this.updatePlayer(dt);
     this.updateConditions(Math.hypot(this.player.vx, this.player.vy) > 15);
     this.updateArts(dt);
+    this.updateMinions(dt);
+    this.updateTotems(dt);
+    this.updateTraps(dt);
     this.updateProjectiles(dt);
     this.updateEnemies(dt);
     this.updateAilments(dt);
@@ -458,6 +473,11 @@ export class HollowWarEngine {
 
       if (def.behavior === 'orbit') {
         this.updateOrbitArt(art, def);
+        continue;
+      }
+
+      if (def.behavior === 'minion') {
+        this.syncMinionRoster(art, def);
         continue;
       }
 
@@ -573,6 +593,189 @@ export class HollowWarEngine {
             this.applyArtHit(e, def, extraMods, art);
           }
         }
+      }
+    } else if (def.behavior === 'totem') {
+      if (this.totems.length >= 3) this.totems.shift();
+      this.totems.push({
+        id: nextEntityId++,
+        artId: def.id,
+        x: this.player.x + Math.cos(this.player.aimAngle) * 42,
+        y: this.player.y + Math.sin(this.player.aimAngle) * 42,
+        life: 8.5,
+        maxLife: 8.5,
+        fireTimer: 0.2,
+      });
+    } else if (def.behavior === 'trap') {
+      if (this.traps.length >= 6) this.traps.shift();
+      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      this.traps.push({
+        id: nextEntityId++,
+        artId: def.id,
+        x: this.player.x + (Math.random() - 0.5) * 46,
+        y: this.player.y + (Math.random() - 0.5) * 46,
+        life: 14,
+        triggerRadius: 38 * Math.sqrt(areaScale),
+        blastRadius: def.baseRadius * areaScale,
+      });
+    }
+  }
+
+  private syncMinionRoster(art: EquippedArt, def: ArtDefinition): void {
+    const extraMods = this.getArtExtraMods(art);
+    const desired =
+      def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+    const current = this.minions.filter((m) => m.artId === art.artId);
+    if (current.length < desired) {
+      const kind = art.artId === 'flame_sprite' ? 'flame_sprite' : 'skeleton';
+      for (let i = current.length; i < desired; i++) {
+        const a = (i / Math.max(1, desired)) * Math.PI * 2;
+        this.minions.push({
+          id: nextEntityId++,
+          artId: art.artId,
+          kind,
+          x: this.player.x + Math.cos(a) * 48,
+          y: this.player.y + Math.sin(a) * 48,
+          facing: a,
+          attackTimer: 0.2,
+        });
+      }
+    }
+  }
+
+  private updateMinions(dt: number): void {
+    for (const m of this.minions) {
+      const art = this.arts.find((a) => a.artId === m.artId);
+      const def = ARTS[m.artId];
+      if (!art || !def) continue;
+      const extraMods = this.getArtExtraMods(art);
+
+      if (m.attackTimer > 0) m.attackTimer -= dt;
+
+      // Find nearest enemy within 360px
+      let nearest: Enemy | null = null;
+      let bestDist = 360;
+      for (const e of this.enemies) {
+        if (e.life <= 0) continue;
+        const d = Math.hypot(e.x - m.x, e.y - m.y);
+        if (d < bestDist) {
+          bestDist = d;
+          nearest = e;
+        }
+      }
+
+      if (m.kind === 'skeleton') {
+        if (nearest) {
+          const dx = nearest.x - m.x;
+          const dy = nearest.y - m.y;
+          m.facing = Math.atan2(dy, dx);
+          if (bestDist > nearest.radius + 18) {
+            m.x += (dx / bestDist) * 195 * dt;
+            m.y += (dy / bestDist) * 195 * dt;
+          } else if (m.attackTimer <= 0) {
+            const spd = Math.max(0.2, this.sheet.get('attackSpeed', def.tags, extraMods));
+            m.attackTimer = def.baseCooldown / spd;
+            this.applyArtHit(nearest, def, extraMods, art);
+          }
+        } else {
+          // Patrol around player
+          const dx = this.player.x - m.x;
+          const dy = this.player.y - m.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 64) {
+            m.facing = Math.atan2(dy, dx);
+            m.x += (dx / dist) * 210 * dt;
+            m.y += (dy / dist) * 210 * dt;
+          }
+        }
+      } else {
+        // Flame Sprite hovers near player and spits firebolts
+        const idx = this.minions.filter((x) => x.kind === 'flame_sprite').indexOf(m);
+        const orbitA = this.player.orbitAngle * 0.9 + idx * 2.1;
+        const tx = this.player.x + Math.cos(orbitA) * 52;
+        const ty = this.player.y + Math.sin(orbitA) * 52;
+        m.x += (tx - m.x) * Math.min(1, dt * 8);
+        m.y += (ty - m.y) * Math.min(1, dt * 8);
+
+        if (nearest && m.attackTimer <= 0) {
+          const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
+          m.attackTimer = def.baseCooldown / spd;
+          const a = Math.atan2(nearest.y - m.y, nearest.x - m.x);
+          m.facing = a;
+          const speed = def.projectileSpeed ?? 480;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: m.x,
+            y: m.y,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            radius: 5.5,
+            color: def.color,
+            artId: def.id,
+            pierceLeft: 0,
+            life: 1.4,
+            hitIds: new Set(),
+            extraMods,
+          });
+        }
+      }
+    }
+  }
+
+  private updateTotems(dt: number): void {
+    for (let i = this.totems.length - 1; i >= 0; i--) {
+      const t = this.totems[i];
+      t.life -= dt;
+      if (t.life <= 0) {
+        this.totems.splice(i, 1);
+        continue;
+      }
+      t.fireTimer -= dt;
+      if (t.fireTimer <= 0) {
+        const art = this.arts.find((a) => a.artId === t.artId);
+        const def = ARTS[t.artId];
+        if (!art || !def) continue;
+        const extraMods = this.getArtExtraMods(art);
+        const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
+        t.fireTimer = 0.88 / spd;
+        const range = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+        const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
+        this.castChainLightning(t.x, t.y, range, chains, def, extraMods, art);
+      }
+    }
+  }
+
+  private updateTraps(dt: number): void {
+    for (let i = this.traps.length - 1; i >= 0; i--) {
+      const tr = this.traps[i];
+      tr.life -= dt;
+      if (tr.life <= 0) {
+        this.traps.splice(i, 1);
+        continue;
+      }
+      const triggered = this.enemies.some(
+        (e) => e.life > 0 && Math.hypot(e.x - tr.x, e.y - tr.y) <= tr.triggerRadius + e.radius,
+      );
+      if (triggered) {
+        const art = this.arts.find((a) => a.artId === tr.artId);
+        const def = ARTS[tr.artId];
+        if (art && def) {
+          const extraMods = this.getArtExtraMods(art);
+          this.novas.push({
+            x: tr.x,
+            y: tr.y,
+            radius: 10,
+            maxRadius: tr.blastRadius,
+            color: def.color,
+            life: 0.28,
+            maxLife: 0.28,
+          });
+          for (const e of this.enemies) {
+            if (e.life > 0 && Math.hypot(e.x - tr.x, e.y - tr.y) <= tr.blastRadius + e.radius) {
+              this.applyArtHit(e, def, extraMods, art);
+            }
+          }
+        }
+        this.traps.splice(i, 1);
       }
     }
   }

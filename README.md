@@ -1,24 +1,30 @@
 # Hollow War
 
-**Hollow War** is a theorycrafting-first **Vampire Survivors / Nova Drift** arena roguelite inspired by **Hollow Wake** and its portable Combat SDK (`@hollow-wake/engine`).
+A theorycrafting-first **Vampire Survivors / Nova Drift** arena roguelite built on **Hollow Wake** combat principles.
 
-## Core Features
-- **Tag-Scoped `StatSheet` Engine** (`src/sdk/stat-sheet.ts`): Evaluates `(base + flat) * (1 + inc) * prod(1 + more)` with skill-tag filtering (`projectile`, `aoe`, `orbit`, `chain`, `fire`, `chaos`, etc.) and live actor `when` conditions (`lowLife`, `fullLife`, `warded`, `moving`, `stationary`).
-- **Conversions, Gain-as-Extra & Ailments** (`src/sdk/combat-resolver.ts`): Full multi-elemental pipeline supporting Physical/Elemental conversions, Gain % as Extra Chaos, Armor/Resistance penetration, and 5 ailments (`ignite`, `bleed`, `poison`, `chill`, `shock`).
-- **Emergent Proc Chains** (`src/sdk/proc-runtime.ts`): `onHit`, `onCrit`, `onKill`, `onDash`, and `onWardBreak` procs with internal cooldowns (ICD) and recursion depth guards.
-- **Socketable Support Gems & Keystones**: Customize active skills with Support Sockets (*Split Volley*, *Combustion*, *Spell Echo*, *Void Infusion*) and Nova Drift-style Keystones (*Glass Cannon*, *Crimson Pact*, *Pyromania*, *Static Overload*, *Singularity*).
-- **Live Theorycrafting Previews**: Level-up draft cards fork your `StatSheet` to show exact **Est. DPS %** deltas before you pick, and `[Tab]` opens the full **Build & Stats Inspector**.
+**Play Live:** https://arianna-arpg.github.io/hollow-war/
 
-## Quick Start
+## Highlights
+- **Hollow Wake Classes & Ultimates**: Deploy as the *Magician*, *Warrior*, *Rogue*, *Necromancer*, *Pyromancer*, or *Guardian*—each with a distinct class silhouette and active Ultimate (`[Space]` / `[Shift]`).
+- **Arts & Inscriptions**: Equip up to **4 active Arts** (up to Rank 8), including projectiles, sweeps, novas, chains, orbiting hammers, **Minions** (*Raise Skeleton*, *Bind Flame Sprite*), **Storm Totems**, and **Cinder Traps**. Etch up to **2 Inscriptions** onto compatible Arts.
+- **Emergent Combat SDK** (`src/sdk/`): Tag-scoped `StatSheet` (`flat` / `inc` / `more`), `when` conditions, Elemental Conversions, Gain-as-Extra damage, 5 ailments (`ignite`, `bleed`, `poison`, `chill`, `shock`), and ICD-guarded `ProcRuntime` chains.
+- **Demon & Undead Hosts**: Fight across the Ashen Warfront against Risen Ghouls, Skeletons, Wraiths, Imps, Hellhounds, Demon Brutes, Marrow Liches, and Abyssal Demon Lords.
+- **Live Theorycrafting**: Level-up drafts fork your `StatSheet` to preview exact **Est. DPS %** deltas, and `[Tab]` opens the full Build & Arts Inspector.
+
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Run tests and type-checking:
+Tests and production build:
 
 ```bash
 npm test
 npm run build
 ```
+
+## Roadmap
+- Dedicated Hollow War front-end portal matching the Hollow Wake web shell.
+- Cross-game Hollow Wake progression & shared unlocks (titles, wardrobe aesthetics, and relic synergies).

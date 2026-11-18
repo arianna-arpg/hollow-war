@@ -16,6 +16,9 @@ export type SkillTag =
   | 'nova'
   | 'orbit'
   | 'chain'
+  | 'minion'
+  | 'totem'
+  | 'trap'
   | 'dot'
   | 'proc'
   | DamageType;

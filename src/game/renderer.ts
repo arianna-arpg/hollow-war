@@ -464,6 +464,79 @@ export function renderGame(
     ctx.restore();
   }
 
+  // Cinder Traps
+  for (const tr of engine.traps) {
+    ctx.save();
+    ctx.translate(tr.x, tr.y);
+    const pulse = 0.75 + Math.sin(engine.elapsed * 8 + tr.id) * 0.25;
+    ctx.strokeStyle = `rgba(244, 63, 94, ${0.45 * pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, tr.triggerRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#fb923c';
+    ctx.beginPath();
+    ctx.arc(0, 0, 5 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Storm Totems
+  for (const t of engine.totems) {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 14, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#7dd3fc';
+    ctx.beginPath();
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Player Minions (Skeletal Vanguards & Flame Sprites)
+  for (const m of engine.minions) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    if (m.kind === 'skeleton') {
+      // Binding ring
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(m.facing);
+      drawRibcage(ctx, 11, '#d6d3d1');
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(2, 5, 11, 2.5);
+      drawSkull(ctx, 5, 11, '#e7e5e4', '#a855f7');
+    } else {
+      const bob = Math.sin(engine.elapsed * 7 + m.id) * 2.5;
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.35)';
+      ctx.beginPath();
+      ctx.arc(0, bob, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fb923c';
+      ctx.beginPath();
+      ctx.arc(0, bob, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath();
+      ctx.arc(0, bob, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // Undead & Demon Enemies
   for (const e of engine.enemies) {
     drawEnemyLook(ctx, e, engine.elapsed);

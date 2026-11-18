@@ -1,6 +1,6 @@
 import { ARTS, getArtRankStep } from '../content/skills.ts';
 import { VESSELS } from '../content/vessels.ts';
-import type { HollowWarEngine } from '../game/engine.ts';
+import type { ArtArchetypeFilter, HollowWarEngine } from '../game/engine.ts';
 import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
 
 export function renderModal(
@@ -121,6 +121,16 @@ export function renderModal(
   }
 
   if (engine.phase === 'draft') {
+    const archetypes: Array<{ id: ArtArchetypeFilter; label: string }> = [
+      { id: 'all', label: 'All' },
+      { id: 'physical', label: 'Physical' },
+      { id: 'fire', label: 'Fire' },
+      { id: 'cold', label: 'Cold' },
+      { id: 'lightning', label: 'Lightning' },
+      { id: 'chaos', label: 'Chaos' },
+      { id: 'attack', label: 'Attack' },
+      { id: 'construct', label: 'Constructs' },
+    ];
     container.innerHTML = `
       <div class="modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -132,8 +142,20 @@ export function renderModal(
             </button>
           </div>
         </div>
-        <div class="modal-subtitle">
+        <div class="modal-subtitle" style="margin-bottom:8px">
           Choose an Art, Inscription, Passive, Conduit, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">
+          <span style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-right:4px">Archetype Focus:</span>
+          ${archetypes
+            .map(
+              (a) => `<button class="btn" data-archetype="${a.id}" style="padding:3px 9px;font-size:11px;${
+                engine.draftArchetype === a.id
+                  ? 'border-color:#fbbf24;background:rgba(251,191,36,0.18);color:#fde68a;font-weight:700;'
+                  : 'opacity:0.78;'
+              }">${a.label}</button>`,
+            )
+            .join('')}
         </div>
         <div class="grid-3">
           ${engine.draftOptions
@@ -147,6 +169,11 @@ export function renderModal(
                     : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
 
               const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
+              const currentStacks = engine.acquiredCards.get(card.id) ?? 0;
+              const rankBadge =
+                card.category === 'passive' && card.maxStacks && card.maxStacks > 1
+                  ? `<span style="font-size:11px;color:#93c5fd;margin-left:6px">(Rank ${currentStacks + 1}/${card.maxStacks})</span>`
+                  : '';
 
               return `
                 <div class="choice-card ${rarityClass}" data-draft="${idx}">
@@ -158,7 +185,7 @@ export function renderModal(
                         ${engine.player.banishes > 0 ? `<button class="btn" data-banish="${idx}" style="padding:2px 6px;font-size:10px;color:#fca5a5;border-color:rgba(239,68,68,0.45)">Banish</button>` : ''}
                       </div>
                     </div>
-                    <div style="font-size:17px;font-weight:800;margin-bottom:8px">${card.name}</div>
+                    <div style="font-size:17px;font-weight:800;margin-bottom:8px">${card.name}${rankBadge}</div>
                     ${
                       card.category === 'art' && card.artId && ARTS[card.artId]
                         ? `<div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:6px">${ARTS[card.artId].description}</div>
@@ -195,6 +222,11 @@ export function renderModal(
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         engine.banishDraftOption(Number(el.dataset.banish));
+      });
+    });
+    container.querySelectorAll<HTMLElement>('[data-archetype]').forEach((el) => {
+      el.addEventListener('click', () => {
+        engine.setDraftArchetype(el.dataset.archetype as ArtArchetypeFilter);
       });
     });
     container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());

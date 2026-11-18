@@ -245,4 +245,33 @@ describe('Hollow War Combat SDK', () => {
     engine.backFromInscribe();
     expect(engine.phase).toBe('draft');
   });
+
+  it('has at least 6 Arts per archetype, deep Attack Inscriptions, and supports Archetype Focus', () => {
+    const allArts = Object.values(ARTS);
+    const archetypes = ['physical', 'fire', 'cold', 'lightning', 'chaos', 'attack'] as const;
+    for (const arch of archetypes) {
+      const count = allArts.filter((a) => a.tags.includes(arch)).length;
+      expect(count).toBeGreaterThanOrEqual(6);
+    }
+    const constructCount = allArts.filter(
+      (a) => a.tags.includes('minion') || a.tags.includes('totem') || a.tags.includes('trap'),
+    ).length;
+    expect(constructCount).toBeGreaterThanOrEqual(6);
+
+    const engine = new HollowWarEngine();
+    engine.startRun('warrior');
+    engine.openDraft();
+    engine.setDraftArchetype('cold');
+    expect(engine.draftArchetype).toBe('cold');
+
+    // Warrior starts with Cleave: verify deep Attack/Strike Inscription coverage
+    const cleave = engine.arts.find((a) => a.artId === 'cleave')!;
+    const compatible = engine.getCompatibleInscriptions(cleave).map((i) => i.id);
+    expect(compatible).toContain('twin_strikes');
+    expect(compatible).toContain('sweeping_arc');
+    expect(compatible).toContain('aftershock');
+    expect(compatible).toContain('razor_tempest');
+    expect(compatible).toContain('phantom_reach');
+    expect(compatible.length).toBeGreaterThanOrEqual(10);
+  });
 });

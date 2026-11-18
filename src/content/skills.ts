@@ -14,6 +14,7 @@ export type ArtBehavior =
   | 'nova'
   | 'ground_zone'
   | 'sweep'
+  | 'cascade_line'
   | 'minion'
   | 'totem'
   | 'trap';
@@ -34,6 +35,15 @@ export interface ArtDefinition extends SkillDamageSpec {
   homing?: boolean;
   explodeRadius?: number;
   explodeScale?: number;
+  sweepProjectiles?: {
+    count: number;
+    speed: number;
+    duration: number;
+    radius: number;
+    pierce?: number;
+    explodeRadius?: number;
+    explodeScale?: number;
+  };
   tags: readonly SkillTag[];
 }
 
@@ -55,6 +65,14 @@ export interface InscriptionDef {
   spreadScale?: number;
   staggerOverride?: number;
   splitOnHit?: number;
+  sweepArcScale?: number;
+  sweepReachOffset?: number;
+  reverseSweep?: boolean;
+  aftershockDelay?: number;
+  aftershockScale?: number;
+  strikeWaveCount?: number;
+  executeBonus?: number;
+  knockbackForce?: number;
 }
 
 export const ARTS: Record<string, ArtDefinition> = {
@@ -465,6 +483,244 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 102,
     tags: ['attack', 'aoe', 'physical'],
+  },
+  molten_strike: {
+    id: 'molten_strike',
+    name: 'Molten Strike',
+    description:
+      'Slams the warfront with a blazing weapon arc and hurls 3 explosive molten embers outward.',
+    color: '#fb923c',
+    behavior: 'sweep',
+    baseDamage: { fire: 24, physical: 12 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 0.84,
+    baseCritChance: 0.06,
+    baseProjectiles: 1,
+    baseRadius: 105,
+    sweepProjectiles: {
+      count: 3,
+      speed: 350,
+      duration: 0.62,
+      radius: 8,
+      explodeRadius: 54,
+      explodeScale: 0.65,
+    },
+    tags: ['attack', 'aoe', 'projectile', 'fire'],
+  },
+  frost_blades: {
+    id: 'frost_blades',
+    name: 'Frost Blades',
+    description:
+      'Carves a chilling frontal crescent that flings 3 piercing ice shards across the battlefield.',
+    color: '#67e8f9',
+    behavior: 'sweep',
+    baseDamage: { cold: 22, physical: 10 },
+    damageEffectiveness: 1.05,
+    baseCooldown: 0.68,
+    baseCritChance: 0.08,
+    baseProjectiles: 1,
+    baseRadius: 100,
+    sweepProjectiles: {
+      count: 3,
+      speed: 560,
+      duration: 0.85,
+      radius: 6,
+      pierce: 2,
+    },
+    tags: ['attack', 'aoe', 'projectile', 'cold'],
+  },
+  ice_spear: {
+    id: 'ice_spear',
+    name: 'Ice Spear',
+    description:
+      'Lances a razor-sharp spike of condensed frost with high velocity, innate piercing, and lethal critical strike chance.',
+    color: '#a5f3fc',
+    behavior: 'projectile',
+    baseDamage: { cold: 28 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 0.72,
+    baseCritChance: 0.14,
+    baseProjectiles: 1,
+    baseRadius: 7,
+    projectileSpeed: 640,
+    baseDuration: 1.4,
+    basePierce: 2,
+    tags: ['spell', 'projectile', 'cold'],
+  },
+  glacial_cascade: {
+    id: 'glacial_cascade',
+    name: 'Glacial Cascade',
+    description:
+      'Erupts a surging line of 3 overlapping frost bursts in your aim direction, shattering clustered foes.',
+    color: '#38bdf8',
+    behavior: 'cascade_line',
+    baseDamage: { cold: 24, physical: 10 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 1.12,
+    baseCritChance: 0.06,
+    baseProjectiles: 3,
+    baseRadius: 76,
+    tags: ['spell', 'aoe', 'cold'],
+  },
+  rime_totem: {
+    id: 'rime_totem',
+    name: 'Rime Totem',
+    description:
+      'Plants a crystalline frost spire that fires chilling bolts at nearby enemies.',
+    color: '#7dd3fc',
+    behavior: 'totem',
+    baseDamage: { cold: 18 },
+    damageEffectiveness: 0.9,
+    baseCooldown: 2.8,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 7,
+    projectileSpeed: 500,
+    baseDuration: 1.3,
+    tags: ['spell', 'totem', 'projectile', 'cold'],
+  },
+  spark: {
+    id: 'spark',
+    name: 'Spark',
+    description:
+      'Unleashes 3 crackling lightning sparks that zip rapidly through ranks with innate pierce.',
+    color: '#fef08a',
+    behavior: 'projectile',
+    baseDamage: { lightning: 16 },
+    damageEffectiveness: 0.75,
+    baseCooldown: 0.62,
+    baseCritChance: 0.06,
+    baseProjectiles: 3,
+    baseRadius: 6,
+    projectileSpeed: 590,
+    baseDuration: 1.25,
+    basePierce: 2,
+    tags: ['spell', 'projectile', 'lightning'],
+  },
+  ball_lightning: {
+    id: 'ball_lightning',
+    name: 'Ball Lightning',
+    description:
+      'Releases a slow-drifting orb of storm plasma that pierces endlessly and pulses with electrical blasts.',
+    color: '#facc15',
+    behavior: 'projectile',
+    baseDamage: { lightning: 22 },
+    damageEffectiveness: 0.95,
+    baseCooldown: 1.05,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 19,
+    projectileSpeed: 215,
+    baseDuration: 2.2,
+    basePierce: 99,
+    explodeRadius: 58,
+    explodeScale: 0.5,
+    tags: ['spell', 'projectile', 'aoe', 'lightning'],
+  },
+  lightning_strike: {
+    id: 'lightning_strike',
+    name: 'Lightning Strike',
+    description:
+      'Sweeps a storm-charged weapon arc that discharges 3 crackling lightning bolts forward.',
+    color: '#fde047',
+    behavior: 'sweep',
+    baseDamage: { lightning: 24, physical: 10 },
+    damageEffectiveness: 1.1,
+    baseCooldown: 0.74,
+    baseCritChance: 0.07,
+    baseProjectiles: 1,
+    baseRadius: 104,
+    sweepProjectiles: {
+      count: 3,
+      speed: 620,
+      duration: 0.78,
+      radius: 6,
+      pierce: 1,
+    },
+    tags: ['attack', 'aoe', 'projectile', 'lightning'],
+  },
+  voltaic_sentry: {
+    id: 'voltaic_sentry',
+    name: 'Voltaic Sentry',
+    description:
+      'Raises an arc-conductor pylon that discharges chaining lightning across nearby foes.',
+    color: '#eab308',
+    behavior: 'totem',
+    baseDamage: { lightning: 20 },
+    damageEffectiveness: 0.9,
+    baseCooldown: 2.9,
+    baseCritChance: 0.06,
+    baseProjectiles: 1,
+    baseRadius: 210,
+    baseChain: 2,
+    tags: ['spell', 'totem', 'chain', 'lightning'],
+  },
+  essence_drain: {
+    id: 'essence_drain',
+    name: 'Essence Drain',
+    description:
+      'Fires a piercing bolt of grave-blight that withers foes and steals a sliver of life on impact.',
+    color: '#c084fc',
+    behavior: 'projectile',
+    baseDamage: { chaos: 28 },
+    damageEffectiveness: 1.1,
+    baseCooldown: 0.76,
+    baseCritChance: 0.04,
+    baseProjectiles: 1,
+    baseRadius: 8,
+    projectileSpeed: 500,
+    baseDuration: 1.6,
+    basePierce: 1,
+    tags: ['spell', 'projectile', 'chaos', 'dot'],
+  },
+  viper_strike: {
+    id: 'viper_strike',
+    name: 'Viper Strike',
+    description:
+      'Executes a swift venomous slash that tears through enemies with chaos-tainted steel.',
+    color: '#84cc16',
+    behavior: 'sweep',
+    baseDamage: { chaos: 18, physical: 14 },
+    damageEffectiveness: 1.05,
+    baseCooldown: 0.56,
+    baseCritChance: 0.08,
+    baseProjectiles: 1,
+    baseRadius: 96,
+    tags: ['attack', 'aoe', 'chaos', 'physical', 'dot'],
+  },
+  blight_zone: {
+    id: 'blight_zone',
+    name: 'Blighted Ground',
+    description:
+      'Desecrates the earth beneath you with creeping chaos miasma that pulses and poisons all foes inside.',
+    color: '#a855f7',
+    behavior: 'ground_zone',
+    baseDamage: { chaos: 14 },
+    damageEffectiveness: 0.65,
+    baseCooldown: 2.6,
+    baseCritChance: 0.02,
+    baseProjectiles: 1,
+    baseRadius: 118,
+    tags: ['spell', 'aoe', 'chaos', 'dot'],
+  },
+  soulrend: {
+    id: 'soulrend',
+    name: 'Soulrend',
+    description:
+      'Looses a homing violet soul-reaver that pierces through enemies and leaves a trail of ruin.',
+    color: '#d946ef',
+    behavior: 'projectile',
+    baseDamage: { chaos: 24 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 0.85,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 9,
+    projectileSpeed: 420,
+    baseDuration: 1.9,
+    basePierce: 2,
+    homing: true,
+    tags: ['spell', 'projectile', 'chaos', 'dot'],
   },
 };
 
@@ -991,6 +1247,125 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
       { stat: 'damage', kind: 'more', value: -0.14 },
     ],
   },
+  twin_strikes: {
+    id: 'twin_strikes',
+    name: 'Inscription of Twin Strikes',
+    shortName: 'Twin Strikes',
+    description: 'Repeats the attack after a brief beat (+12% Attack Speed), at the cost of 15% Less Damage per strike.',
+    color: '#fbbf24',
+    requiredTags: ['attack'],
+    echoChance: 1.0,
+    mods: [
+      { stat: 'attackSpeed', kind: 'inc', value: 0.12 },
+      { stat: 'damage', kind: 'more', value: -0.15, tags: ['attack'] },
+    ],
+  },
+  sweeping_arc: {
+    id: 'sweeping_arc',
+    name: 'Inscription of Sweeping Arc',
+    shortName: 'Sweeping Arc',
+    description: 'Widens melee cleave arcs by +55% and grants +30% Area of Effect, but 10% Less Attack Speed.',
+    color: '#f59e0b',
+    requiredTags: ['attack', 'aoe'],
+    sweepArcScale: 1.55,
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.3 },
+      { stat: 'attackSpeed', kind: 'more', value: -0.1 },
+    ],
+  },
+  aftershock: {
+    id: 'aftershock',
+    name: 'Inscription of Aftershock',
+    shortName: 'Aftershock',
+    description: 'Every strike leaves a delayed seismic eruption for 65% Area Damage and +15% Area.',
+    color: '#f97316',
+    requiredTags: ['attack', 'aoe'],
+    aftershockDelay: 0.35,
+    aftershockScale: 0.65,
+    mods: [{ stat: 'area', kind: 'inc', value: 0.15 }],
+  },
+  culling_edge: {
+    id: 'culling_edge',
+    name: 'Inscription of Execution',
+    shortName: 'Execution',
+    description: '+40% More Damage against wounded foes below 50% Life and +12% Base Crit Chance.',
+    color: '#ef4444',
+    requiredTags: ['attack'],
+    executeBonus: 0.4,
+    mods: [{ stat: 'critChance', kind: 'flat', value: 0.12 }],
+  },
+  lunging_step: {
+    id: 'lunging_step',
+    name: 'Inscription of Lunging Step',
+    shortName: 'Lunging Step',
+    description: 'Projects melee strikes forward by 38px with +20% Area and +15% Attack Speed.',
+    color: '#38bdf8',
+    requiredTags: ['attack', 'aoe'],
+    sweepReachOffset: 38,
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.2 },
+      { stat: 'attackSpeed', kind: 'inc', value: 0.15 },
+    ],
+  },
+  deep_wounds: {
+    id: 'deep_wounds',
+    name: 'Inscription of Deep Wounds',
+    shortName: 'Deep Wounds',
+    description: 'Tears arteries open: +50% Bleed Chance, +35% Ailment/DoT Damage, and +25% Crit Multiplier.',
+    color: '#dc2626',
+    requiredTags: ['attack'],
+    mods: [
+      { stat: 'bleedChance', kind: 'flat', value: 0.5 },
+      { stat: 'dotDamage', kind: 'inc', value: 0.35 },
+      { stat: 'critMulti', kind: 'flat', value: 0.25 },
+    ],
+  },
+  razor_tempest: {
+    id: 'razor_tempest',
+    name: 'Inscription of Razor Tempest',
+    shortName: 'Razor Tempest',
+    description: 'Melee strikes hurl 2 piercing blade-waves forward for 55% damage, plus +15% Attack Damage.',
+    color: '#a3e635',
+    requiredTags: ['attack', 'aoe'],
+    strikeWaveCount: 2,
+    mods: [{ stat: 'damage', kind: 'inc', value: 0.15, tags: ['attack'] }],
+  },
+  crushing_blow: {
+    id: 'crushing_blow',
+    name: 'Inscription of Crushing Blow',
+    shortName: 'Crushing Blow',
+    description: 'Staggers and knocks enemies back on hit with +35% More Attack Damage, but 15% Less Attack Speed.',
+    color: '#d8b06a',
+    requiredTags: ['attack'],
+    knockbackForce: 55,
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.35, tags: ['attack'] },
+      { stat: 'attackSpeed', kind: 'more', value: -0.15 },
+    ],
+  },
+  bloodthirst: {
+    id: 'bloodthirst',
+    name: 'Inscription of Bloodthirst',
+    shortName: 'Bloodthirst',
+    description: 'Feeds on battle: +4% Life Leech, +20% Attack Speed, and +12% Move Speed.',
+    color: '#fb7185',
+    requiredTags: ['attack'],
+    mods: [
+      { stat: 'lifeLeech', kind: 'flat', value: 0.04 },
+      { stat: 'attackSpeed', kind: 'inc', value: 0.2 },
+      { stat: 'moveSpeed', kind: 'inc', value: 0.12 },
+    ],
+  },
+  phantom_reach: {
+    id: 'phantom_reach',
+    name: 'Inscription of Phantom Reach',
+    shortName: 'Phantom Reach',
+    description: 'Echoes a mirrored phantom slash behind you on every swing, plus +15% Attack Damage.',
+    color: '#c084fc',
+    requiredTags: ['attack', 'aoe'],
+    reverseSweep: true,
+    mods: [{ stat: 'damage', kind: 'inc', value: 0.15, tags: ['attack'] }],
+  },
 };
 
 export interface ArtRankStep {
@@ -1122,6 +1497,36 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
     case 'heavy_strike':
       if (r % 2 === 0) return { summary: '+15% Armor Pen, +10% Crit Chance, +12% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.15 }, { stat: 'critChance', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
       return { summary: '+15% Attack Speed, +28% Crit Multi, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'critMulti', kind: 'flat', value: 0.28 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+
+    case 'molten_strike':
+    case 'frost_blades':
+    case 'lightning_strike':
+      if (r === 3 || r === 6) return { summary: '+1 Strike Projectile, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      if (r % 2 === 0) return { summary: '+16% Attack Speed, +15% Area, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.16 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+8% Crit Chance, +20% Crit Multi, +12% More Damage', mods: [{ stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'critMulti', kind: 'flat', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'ice_spear':
+    case 'spark':
+    case 'essence_drain':
+    case 'soulrend':
+      if (r === 3 || r === 6) return { summary: '+1 Projectile, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      if (r % 2 === 0) return { summary: '+18% Cast Speed, +1 Pierce, +10% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.18 }, { stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+15% Projectile Speed, +12% More Damage', mods: [{ stat: 'projectileSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'glacial_cascade':
+    case 'ball_lightning':
+    case 'blight_zone':
+      if (r % 2 === 0) return { summary: '+20% Area, +12% Cooldown Recovery, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'cooldownRecovery', kind: 'inc', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+16% Cast Speed, +14% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.16 }, { stat: 'damage', kind: 'more', value: 0.14 }] };
+
+    case 'rime_totem':
+    case 'voltaic_sentry':
+      if (r === 3 || r === 6) return { summary: '+1 Bolt/Chain, +12% More Damage', mods: [{ stat: artId === 'voltaic_sentry' ? 'chainCount' : 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+18% Cast Speed, +12% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.18 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'viper_strike':
+      if (r % 2 === 0) return { summary: '+25% Poison Chance, +20% DoT Damage, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.25 }, { stat: 'dotDamage', kind: 'inc', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+18% Attack Speed, +15% Area, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
     default:
       return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };

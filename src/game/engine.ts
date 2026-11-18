@@ -21,7 +21,7 @@ import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
 import { computeOutgoingByType, previewSkillDps, resolveHit, type SkillDamageSpec } from '../sdk/combat-resolver.ts';
 import { ProcRuntime, type ProcEventContext } from '../sdk/proc-runtime.ts';
 import { StatSheet } from '../sdk/stat-sheet.ts';
-import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview } from '../sdk/types.ts';
+import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview, SkillTag } from '../sdk/types.ts';
 import type {
   ActiveUltEffect,
   Enemy,
@@ -75,6 +75,26 @@ const DAMAGE_COLORS: Record<DamageType, string> = {
   lightning: '#fde047',
   chaos: '#c084fc',
 };
+
+export type ArtArchetypeFilter =
+  | 'all'
+  | 'physical'
+  | 'fire'
+  | 'cold'
+  | 'lightning'
+  | 'chaos'
+  | 'attack'
+  | 'construct';
+
+interface PendingAftershock {
+  artId: string;
+  x: number;
+  y: number;
+  radius: number;
+  scale: number;
+  color: string;
+  delay: number;
+}
 
 let nextEntityId = 1;
 
@@ -133,6 +153,7 @@ export class HollowWarEngine {
   groundZones: GroundZone[] = [];
   incursionPortals: IncursionPortal[] = [];
   pendingEchoes: PendingEcho[] = [];
+  pendingAftershocks: PendingAftershock[] = [];
   pendingProjectiles: PendingProjectile[] = [];
   activeUltEffects: ActiveUltEffect[] = [];
   enemyHazards: EnemyHazardZone[] = [];
@@ -141,6 +162,8 @@ export class HollowWarEngine {
   particles: Particle[] = [];
 
   draftOptions: DraftOption[] = [];
+  draftArchetype: ArtArchetypeFilter = 'all';
+  private archetypeShiftedThisDraft = false;
   inscribeChoice: InscribeChoiceState | null = null;
   thronelord: { id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string } | null = null;
 
@@ -229,6 +252,7 @@ export class HollowWarEngine {
     this.groundZones = [];
     this.incursionPortals = [];
     this.pendingEchoes = [];
+    this.pendingAftershocks = [];
     this.pendingProjectiles = [];
     this.activeUltEffects = [];
     this.enemyHazards = [];
@@ -236,6 +260,8 @@ export class HollowWarEngine {
     this.floatingTexts = [];
     this.particles = [];
     this.draftOptions = [];
+    this.draftArchetype = 'all';
+    this.archetypeShiftedThisDraft = false;
     this.inscribeChoice = null;
     this.thronelord = null;
 
@@ -465,6 +491,7 @@ export class HollowWarEngine {
     this.updateConditions(Math.hypot(this.player.vx, this.player.vy) > 15);
     this.updateArts(dt);
     this.updateEchoes(dt);
+    this.updateAftershocks(dt);
     this.updatePendingProjectiles(dt);
     this.updateActiveUltEffects(dt);
     this.updateMinions(dt);
@@ -537,6 +564,40 @@ export class HollowWarEngine {
         const def = ARTS[echo.artId];
         if (art && def) {
           this.castArt(art, def, this.getArtExtraMods(art));
+        }
+      }
+    }
+  }
+
+  private updateAftershocks(dt: number): void {
+    for (let i = this.pendingAftershocks.length - 1; i >= 0; i--) {
+      const shock = this.pendingAftershocks[i];
+      shock.delay -= dt;
+      if (shock.delay <= 0) {
+        this.pendingAftershocks.splice(i, 1);
+        const art = this.arts.find((a) => a.artId === shock.artId);
+        const def = ARTS[shock.artId];
+        if (!art || !def) continue;
+        const extraMods = this.getArtExtraMods(art);
+        const scaledSpec: SkillDamageSpec = {
+          ...def,
+          damageEffectiveness: (def.damageEffectiveness ?? 1) * shock.scale,
+          tags: [...def.tags, 'aoe'],
+        };
+        this.novas.push({
+          x: shock.x,
+          y: shock.y,
+          radius: 14,
+          maxRadius: shock.radius,
+          color: shock.color,
+          life: 0.26,
+          maxLife: 0.26,
+        });
+        for (const e of this.enemies) {
+          if (e.life <= 0) continue;
+          if (Math.hypot(e.x - shock.x, e.y - shock.y) <= shock.radius + e.radius) {
+            this.applyArtHit(e, scaledSpec, extraMods, art);
+          }
         }
       }
     }
@@ -767,31 +828,173 @@ export class HollowWarEngine {
           this.applyArtHit(e, def, extraMods, art);
         }
       }
+      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
+      if (aftershockIns?.aftershockDelay) {
+        this.pendingAftershocks.push({
+          artId: def.id,
+          x: this.player.x,
+          y: this.player.y,
+          radius: radius * 0.9,
+          scale: aftershockIns.aftershockScale ?? 0.65,
+          color: aftershockIns.color,
+          delay: aftershockIns.aftershockDelay,
+        });
+      }
+      const waveCount = art.inscriptions.reduce((s, i) => s + (i.strikeWaveCount ?? 0), 0);
+      if (waveCount > 0) {
+        for (let w = 0; w < waveCount; w++) {
+          const a = this.player.aimAngle + (w - (waveCount - 1) / 2) * 0.26;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: this.player.x + Math.cos(a) * 18,
+            y: this.player.y + Math.sin(a) * 18,
+            vx: Math.cos(a) * 480,
+            vy: Math.sin(a) * 480,
+            radius: 10,
+            color: def.color,
+            artId: def.id,
+            pierceLeft: 2,
+            life: 0.85,
+            hitIds: new Set(),
+            explodeScale: 0.55,
+            extraMods,
+          });
+        }
+      }
     } else if (def.behavior === 'sweep') {
       const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
-      const arcSpread = Math.PI * 0.78;
-      this.sweeps.push({
-        x: this.player.x,
-        y: this.player.y,
-        angle: this.player.aimAngle,
-        radius,
-        arcSpread,
-        color: def.color,
-        life: 0.2,
-        maxLife: 0.2,
-      });
-      for (const e of this.enemies) {
-        if (e.life <= 0) continue;
-        const dx = e.x - this.player.x;
-        const dy = e.y - this.player.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist <= radius + e.radius) {
-          let diff = Math.atan2(dy, dx) - this.player.aimAngle;
-          while (diff > Math.PI) diff -= Math.PI * 2;
-          while (diff < -Math.PI) diff += Math.PI * 2;
-          if (Math.abs(diff) <= arcSpread / 2 + 0.25) {
-            this.applyArtHit(e, def, extraMods, art);
+      const arcScale = art.inscriptions.reduce((s, i) => s * (i.sweepArcScale ?? 1), 1);
+      const arcSpread = Math.min(Math.PI * 1.95, Math.PI * 0.78 * arcScale);
+      const reachOffset = art.inscriptions.reduce((s, i) => s + (i.sweepReachOffset ?? 0), 0);
+      const ox = this.player.x + Math.cos(this.player.aimAngle) * reachOffset;
+      const oy = this.player.y + Math.sin(this.player.aimAngle) * reachOffset;
+      const doReverse = art.inscriptions.some((i) => i.reverseSweep);
+      const angles = doReverse ? [this.player.aimAngle, this.player.aimAngle + Math.PI] : [this.player.aimAngle];
+
+      for (const swingAngle of angles) {
+        this.sweeps.push({
+          x: ox,
+          y: oy,
+          angle: swingAngle,
+          radius,
+          arcSpread,
+          color: def.color,
+          life: 0.2,
+          maxLife: 0.2,
+        });
+        for (const e of this.enemies) {
+          if (e.life <= 0) continue;
+          const dx = e.x - ox;
+          const dy = e.y - oy;
+          const dist = Math.hypot(dx, dy);
+          if (dist <= radius + e.radius) {
+            let diff = Math.atan2(dy, dx) - swingAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            if (Math.abs(diff) <= arcSpread / 2 + 0.25) {
+              this.applyArtHit(e, def, extraMods, art);
+            }
           }
+        }
+      }
+
+      if (def.sweepProjectiles) {
+        const sp = def.sweepProjectiles;
+        const projCount = sp.count + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+        const pierce = (sp.pierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+        const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
+        const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
+        const areaScale = this.sheet.get('area', def.tags, extraMods);
+        const spread = projCount > 1 ? 0.22 : 0;
+        for (let k = 0; k < projCount; k++) {
+          const a = this.player.aimAngle + (k - (projCount - 1) / 2) * spread;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: ox + Math.cos(a) * 20,
+            y: oy + Math.sin(a) * 20,
+            vx: Math.cos(a) * sp.speed * speedScale,
+            vy: Math.sin(a) * sp.speed * speedScale,
+            radius: sp.radius * Math.sqrt(areaScale),
+            color: def.color,
+            artId: def.id,
+            pierceLeft: pierce,
+            life: sp.duration * durScale,
+            hitIds: new Set(),
+            explodeRadius: sp.explodeRadius ? sp.explodeRadius * areaScale : undefined,
+            explodeScale: sp.explodeScale ?? 0.65,
+            extraMods,
+          });
+        }
+      }
+
+      const waveCount = art.inscriptions.reduce((s, i) => s + (i.strikeWaveCount ?? 0), 0);
+      if (waveCount > 0) {
+        for (let w = 0; w < waveCount; w++) {
+          const a = this.player.aimAngle + (w - (waveCount - 1) / 2) * 0.22;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: ox + Math.cos(a) * 18,
+            y: oy + Math.sin(a) * 18,
+            vx: Math.cos(a) * 510,
+            vy: Math.sin(a) * 510,
+            radius: 10,
+            color: def.color,
+            artId: def.id,
+            pierceLeft: 2,
+            life: 0.85,
+            hitIds: new Set(),
+            explodeScale: 0.55,
+            extraMods,
+          });
+        }
+      }
+
+      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
+      if (aftershockIns?.aftershockDelay) {
+        this.pendingAftershocks.push({
+          artId: def.id,
+          x: ox + Math.cos(this.player.aimAngle) * (radius * 0.45),
+          y: oy + Math.sin(this.player.aimAngle) * (radius * 0.45),
+          radius: radius * 0.85,
+          scale: aftershockIns.aftershockScale ?? 0.65,
+          color: aftershockIns.color,
+          delay: aftershockIns.aftershockDelay,
+        });
+      }
+    } else if (def.behavior === 'cascade_line') {
+      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      const radius = def.baseRadius * areaScale;
+      const steps = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+      const stepDist = radius * 1.15;
+      for (let s = 0; s < steps; s++) {
+        const cx = this.player.x + Math.cos(this.player.aimAngle) * (stepDist * (s + 0.7));
+        const cy = this.player.y + Math.sin(this.player.aimAngle) * (stepDist * (s + 0.7));
+        if (s === 0) {
+          this.novas.push({
+            x: cx,
+            y: cy,
+            radius: 12,
+            maxRadius: radius,
+            color: def.color,
+            life: 0.28,
+            maxLife: 0.28,
+          });
+          for (const e of this.enemies) {
+            if (e.life <= 0) continue;
+            if (Math.hypot(e.x - cx, e.y - cy) <= radius + e.radius) {
+              this.applyArtHit(e, def, extraMods, art);
+            }
+          }
+        } else {
+          this.pendingAftershocks.push({
+            artId: def.id,
+            x: cx,
+            y: cy,
+            radius,
+            scale: 1.0,
+            color: def.color,
+            delay: s * 0.11,
+          });
         }
       }
     } else if (def.behavior === 'totem') {
@@ -977,27 +1180,32 @@ export class HollowWarEngine {
           }
         }
         if (nearest) {
-          const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
-          const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-          const baseA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
-          const projSpeed = def.projectileSpeed ?? 540;
-          const spread = count > 1 ? 0.16 : 0;
-          for (let k = 0; k < count; k++) {
-            const a = baseA + (k - (count - 1) / 2) * spread;
-            this.projectiles.push({
-              id: nextEntityId++,
-              x: t.x,
-              y: t.y,
-              vx: Math.cos(a) * projSpeed,
-              vy: Math.sin(a) * projSpeed,
-              radius: 6,
-              color: def.color,
-              artId: def.id,
-              pierceLeft: pierce,
-              life: 1.4,
-              hitIds: new Set(),
-              extraMods,
-            });
+          if (def.id === 'voltaic_sentry') {
+            const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
+            this.castChainLightning(t.x, t.y, range, chains, def, extraMods, art);
+          } else {
+            const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+            const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+            const baseA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
+            const projSpeed = def.projectileSpeed ?? 540;
+            const spread = count > 1 ? 0.16 : 0;
+            for (let k = 0; k < count; k++) {
+              const a = baseA + (k - (count - 1) / 2) * spread;
+              this.projectiles.push({
+                id: nextEntityId++,
+                x: t.x,
+                y: t.y,
+                vx: Math.cos(a) * projSpeed,
+                vy: Math.sin(a) * projSpeed,
+                radius: 6,
+                color: def.color,
+                artId: def.id,
+                pierceLeft: pierce,
+                life: 1.4,
+                hitIds: new Set(),
+                extraMods,
+              });
+            }
           }
         }
       }
@@ -1122,6 +1330,8 @@ export class HollowWarEngine {
     const innateAilmentMods: Modifier[] = [];
     if (art?.artId === 'poison_nova') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.6 });
+    } else if (art?.artId === 'viper_strike') {
+      innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.55 });
     } else if (art?.artId === 'rend') {
       innateAilmentMods.push({ stat: 'bleedChance', kind: 'flat', value: 0.65 });
     }
@@ -1142,13 +1352,24 @@ export class HollowWarEngine {
       extraExtras,
     );
 
-    const total = receipt.totalDamage;
+    const execBonus = art ? art.inscriptions.reduce((s, i) => s + (i.executeBonus ?? 0), 0) : 0;
+    const isExecute = execBonus > 0 && enemy.life < enemy.maxLife * 0.5;
+    const total = receipt.totalDamage * (isExecute ? 1 + execBonus : 1);
 
     enemy.life -= total;
     enemy.hitFlash = 0.1;
     this.totalDamageDealt += total;
 
-    const leech = this.sheet.get('lifeLeech', spec.tags, extraMods);
+    const knockForce = art ? art.inscriptions.reduce((s, i) => s + (i.knockbackForce ?? 0), 0) : 0;
+    if (knockForce > 0 && !enemy.isBoss && enemy.life > 0) {
+      const kdx = enemy.x - this.player.x;
+      const kdy = enemy.y - this.player.y;
+      const kd = Math.max(1, Math.hypot(kdx, kdy));
+      enemy.x += (kdx / kd) * knockForce;
+      enemy.y += (kdy / kd) * knockForce;
+    }
+
+    const leech = this.sheet.get('lifeLeech', spec.tags, extraMods) + (art?.artId === 'essence_drain' ? 0.03 : 0);
     if (leech > 0) {
       const maxLife = this.sheet.get('life');
       this.player.life = Math.min(maxLife, this.player.life + total * leech);
@@ -1961,23 +2182,33 @@ export class HollowWarEngine {
     if (this.elapsed < this.nextWraithWallAt) return;
     this.nextWraithWallAt += 70;
 
-    // Spawn a linear band of Grave Wraiths sweeping straight across the arena
+    // Spawn a full-screen off-screen marching phalanx of Grave Wraiths sweeping across the entire arena
     const horizontal = Math.random() < 0.5;
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const count = 11;
-    const spacing = 46;
+    const halfW = Math.max(640, this.viewportW * 0.5) + 140;
+    const halfH = Math.max(400, this.viewportH * 0.5) + 140;
+    const span = horizontal ? Math.max(720, this.viewportH) + 240 : Math.max(1280, this.viewportW) + 280;
+    const spacing = 38;
+    const count = Math.ceil(span / spacing);
+    const ranks = this.elapsed >= 300 ? 2 : 1;
+    const speed = horizontal ? 145 : 135;
+    const crossDist = (horizontal ? halfW * 2 : halfH * 2) + 220;
+    const life = crossDist / speed;
 
-    for (let i = 0; i < count; i++) {
-      const offset = (i - (count - 1) / 2) * spacing;
-      const sx = horizontal ? this.player.x - dir * 560 : this.player.x + offset;
-      const sy = horizontal ? this.player.y + offset : this.player.y - dir * 420;
-      const wraith = createEnemy('wraith', sx, sy, this.elapsed);
-      wraith.fixedVelocity = {
-        vx: horizontal ? dir * 165 : 0,
-        vy: horizontal ? 0 : dir * 165,
-        life: 8.5,
-      };
-      this.enemies.push(wraith);
+    for (let r = 0; r < ranks; r++) {
+      const rankOffset = r * 42;
+      for (let i = 0; i < count; i++) {
+        const offset = (i - (count - 1) / 2) * spacing;
+        const sx = horizontal ? this.player.x - dir * (halfW + rankOffset) : this.player.x + offset;
+        const sy = horizontal ? this.player.y + offset : this.player.y - dir * (halfH + rankOffset);
+        const wraith = createEnemy('wraith', sx, sy, this.elapsed);
+        wraith.fixedVelocity = {
+          vx: horizontal ? dir * speed : 0,
+          vy: horizontal ? 0 : dir * speed,
+          life,
+        };
+        this.enemies.push(wraith);
+      }
     }
 
     this.floatingTexts.push({
@@ -2062,8 +2293,19 @@ export class HollowWarEngine {
   }
 
   openDraft(): void {
+    this.archetypeShiftedThisDraft = false;
     this.draftOptions = this.rollDraftOptions(3);
     this.setPhase('draft');
+  }
+
+  setDraftArchetype(filter: ArtArchetypeFilter): void {
+    if (this.draftArchetype === filter) return;
+    this.draftArchetype = filter;
+    if (this.phase === 'draft' && !this.archetypeShiftedThisDraft) {
+      this.archetypeShiftedThisDraft = true;
+      this.draftOptions = this.rollDraftOptions(3);
+    }
+    this.onPhaseChange?.(this.phase);
   }
 
   rerollDraft(): void {
@@ -2121,7 +2363,7 @@ export class HollowWarEngine {
     return tags;
   }
 
-  private getCompatibleInscriptions(art: EquippedArt): InscriptionDef[] {
+  getCompatibleInscriptions(art: EquippedArt): InscriptionDef[] {
     const def = ARTS[art.artId];
     if (!def) return [];
     const extraMods = this.getArtExtraMods(art);
@@ -2152,6 +2394,14 @@ export class HollowWarEngine {
 
     const eligible: WeightedCandidate[] = [];
 
+    const matchesArchetype = (tags: readonly SkillTag[]): boolean => {
+      if (this.draftArchetype === 'all') return false;
+      if (this.draftArchetype === 'construct') {
+        return tags.includes('minion') || tags.includes('totem') || tags.includes('trap');
+      }
+      return tags.includes(this.draftArchetype);
+    };
+
     for (const card of UPGRADE_POOL) {
       if (this.banishedCards.has(card.id) || excludeIds.has(card.id)) continue;
 
@@ -2164,14 +2414,16 @@ export class HollowWarEngine {
         }
         const shared = card.tags.filter((t) => activeTags.has(t)).length;
         const rankBonus = active ? 1.5 : 1.0;
-        eligible.push({ card, weight: rankBonus * (1 + shared * affinityBoost) });
+        const focusMult = matchesArchetype(card.tags) ? 6.0 : this.draftArchetype !== 'all' ? 0.45 : 1.0;
+        eligible.push({ card, weight: rankBonus * (1 + shared * affinityBoost) * focusMult });
         continue;
       }
 
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
       const shared = card.tags.filter((t) => activeTags.has(t)).length;
-      eligible.push({ card, weight: 1 + shared * affinityBoost });
+      const focusMult = matchesArchetype(card.tags) ? 4.2 : 1.0;
+      eligible.push({ card, weight: (1 + shared * affinityBoost) * focusMult });
     }
 
     // Inverted Inscription system: offer one "Inscribe: <Active Art>" card per active Art with open sockets
@@ -2182,6 +2434,7 @@ export class HollowWarEngine {
       const def = ARTS[ar.artId];
       const cardId = `inscribe_${ar.artId}`;
       if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
+      const focusMult = matchesArchetype(def.tags) ? 2.8 : 1.0;
       eligible.push({
         card: {
           id: cardId,
@@ -2192,7 +2445,7 @@ export class HollowWarEngine {
           description: `Choose an Inscription from up to 4 compatible runes to etch onto ${def.name} (${ar.inscriptions.length}/${maxIns} etched).`,
           tags: def.tags,
         },
-        weight: 2.2 + affinityBoost * 0.8,
+        weight: (2.2 + affinityBoost * 0.8) * focusMult,
       });
     }
 

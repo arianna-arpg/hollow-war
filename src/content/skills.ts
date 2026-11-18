@@ -38,6 +38,13 @@ export interface ArtDefinition extends SkillDamageSpec {
   explodeScale?: number;
   timedSummon?: boolean;
   maxSummons?: number;
+  windupDelay?: number;
+  thrustHalfWidth?: number;
+  innateAftershock?: {
+    delay: number;
+    scale: number;
+    radiusMult: number;
+  };
   sweepProjectiles?: {
     count: number;
     speed: number;
@@ -73,6 +80,7 @@ export interface InscriptionDef {
   reverseSweep?: boolean;
   aftershockDelay?: number;
   aftershockScale?: number;
+  aftershockCount?: number;
   strikeWaveCount?: number;
   executeBonus?: number;
   knockbackForce?: number;
@@ -483,20 +491,57 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'heavy_strike',
     name: 'Heavy Strike',
     description:
-      'Delivers a crushing overhead blow in a tight frontal arc with heavy Armor Penetration and Critical impact.',
+      'Winds up briefly before driving a narrow, long-reaching crushing blow with lethal Armor Penetration and Critical impact.',
     color: '#e2e8f0',
-    behavior: 'sweep',
-    baseDamage: { physical: 44 },
-    damageEffectiveness: 1.4,
-    baseCooldown: 0.92,
-    baseCritChance: 0.1,
+    behavior: 'thrust',
+    baseDamage: { physical: 72 },
+    damageEffectiveness: 1.85,
+    baseCooldown: 1.48,
+    baseCritChance: 0.14,
     baseProjectiles: 1,
-    baseRadius: 102,
+    baseRadius: 195,
+    windupDelay: 0.28,
+    thrustHalfWidth: 22,
+    tags: ['attack', 'physical'],
+  },
+  earthquake: {
+    id: 'earthquake',
+    name: 'Earthquake',
+    description:
+      'Slams the earth at your feet, followed 0.9s later by a massive seismic aftershock across a wider radius for 220% damage.',
+    color: '#d97706',
+    behavior: 'nova',
+    baseDamage: { physical: 32 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 1.65,
+    baseCritChance: 0.06,
+    baseProjectiles: 1,
+    baseRadius: 112,
+    innateAftershock: {
+      delay: 0.9,
+      scale: 2.2,
+      radiusMult: 1.25,
+    },
+    tags: ['attack', 'aoe', 'nova', 'physical'],
+  },
+  sunder_maul: {
+    id: 'sunder_maul',
+    name: 'Sunder Maul',
+    description:
+      'Brings down a heavy tectonic maul in a wide frontal sweep that shatters armor and staggers the front line.',
+    color: '#b45309',
+    behavior: 'sweep',
+    baseDamage: { physical: 48 },
+    damageEffectiveness: 1.45,
+    baseCooldown: 1.15,
+    baseCritChance: 0.08,
+    baseProjectiles: 1,
+    baseRadius: 122,
     tags: ['attack', 'aoe', 'physical'],
   },
-  molten_strike: {
-    id: 'molten_strike',
-    name: 'Molten Strike',
+  hellfire_lash: {
+    id: 'hellfire_lash',
+    name: 'Hellfire Lash',
     description:
       'Slams the warfront with a blazing weapon arc and hurls 3 explosive molten embers outward.',
     color: '#fb923c',
@@ -517,9 +562,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     },
     tags: ['attack', 'aoe', 'projectile', 'fire'],
   },
-  frost_blades: {
-    id: 'frost_blades',
-    name: 'Frost Blades',
+  shard_waltz: {
+    id: 'shard_waltz',
+    name: 'Shard Waltz',
     description:
       'Carves a chilling frontal crescent that flings 3 piercing ice shards across the battlefield.',
     color: '#67e8f9',
@@ -539,9 +584,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     },
     tags: ['attack', 'aoe', 'projectile', 'cold'],
   },
-  ice_spear: {
-    id: 'ice_spear',
-    name: 'Ice Spear',
+  starfall_shard: {
+    id: 'starfall_shard',
+    name: 'Starfall Shard',
     description:
       'Lances a razor-sharp spike of condensed frost with high velocity, innate piercing, and lethal critical strike chance.',
     color: '#a5f3fc',
@@ -557,9 +602,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     basePierce: 2,
     tags: ['spell', 'projectile', 'cold'],
   },
-  glacial_cascade: {
-    id: 'glacial_cascade',
-    name: 'Glacial Cascade',
+  drowning_grasp: {
+    id: 'drowning_grasp',
+    name: 'Drowning Grasp',
     description:
       'Erupts a surging line of 3 overlapping frost bursts in your aim direction, shattering clustered foes.',
     color: '#38bdf8',
@@ -607,9 +652,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     basePierce: 2,
     tags: ['spell', 'projectile', 'lightning'],
   },
-  ball_lightning: {
-    id: 'ball_lightning',
-    name: 'Ball Lightning',
+  sparklattice: {
+    id: 'sparklattice',
+    name: 'Sparklattice',
     description:
       'Releases a slow-drifting orb of storm plasma that pierces endlessly and pulses with electrical blasts.',
     color: '#facc15',
@@ -627,9 +672,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     explodeScale: 0.5,
     tags: ['spell', 'projectile', 'aoe', 'lightning'],
   },
-  lightning_strike: {
-    id: 'lightning_strike',
-    name: 'Lightning Strike',
+  stormcall_lash: {
+    id: 'stormcall_lash',
+    name: 'Stormcall Lash',
     description:
       'Sweeps a storm-charged weapon arc that discharges 3 crackling lightning bolts forward.',
     color: '#fde047',
@@ -665,9 +710,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseChain: 2,
     tags: ['spell', 'totem', 'chain', 'lightning'],
   },
-  essence_drain: {
-    id: 'essence_drain',
-    name: 'Essence Drain',
+  unmaking_bolt: {
+    id: 'unmaking_bolt',
+    name: 'Unmaking Bolt',
     description:
       'Fires a piercing bolt of grave-blight that withers foes and steals a sliver of life on impact.',
     color: '#c084fc',
@@ -683,9 +728,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     basePierce: 1,
     tags: ['spell', 'projectile', 'chaos', 'dot'],
   },
-  viper_strike: {
-    id: 'viper_strike',
-    name: 'Viper Strike',
+  venom_fang: {
+    id: 'venom_fang',
+    name: 'Venom Fang',
     description:
       'Juts forward in a narrow venomous stab, piercing every foe along the line with chaos-tainted steel.',
     color: '#84cc16',
@@ -731,9 +776,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseRadius: 118,
     tags: ['spell', 'aoe', 'chaos', 'dot'],
   },
-  soulrend: {
-    id: 'soulrend',
-    name: 'Soulrend',
+  word_of_unmaking: {
+    id: 'word_of_unmaking',
+    name: 'Word of Unmaking',
     description:
       'Looses a homing violet soul-reaver that pierces through enemies and leaves a trail of ruin.',
     color: '#d946ef',
@@ -1509,6 +1554,59 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     trapCountBonus: 2,
     mods: [{ stat: 'damage', kind: 'more', value: -0.2 }],
   },
+  rolling_quake: {
+    id: 'rolling_quake',
+    name: 'Inscription of Rolling Quake',
+    shortName: 'Rolling Quake',
+    description: 'Triggers 2 rhythmic seismic aftershocks per strike (85% Area Damage each) and +20% Area of Effect.',
+    color: '#d97706',
+    requiredTags: ['attack', 'aoe'],
+    aftershockDelay: 0.4,
+    aftershockScale: 0.85,
+    aftershockCount: 2,
+    mods: [{ stat: 'area', kind: 'inc', value: 0.2 }],
+  },
+  buried_verdict: {
+    id: 'buried_verdict',
+    name: 'Inscription of Buried Verdict',
+    shortName: 'Buried Verdict',
+    description: 'Delays a colossal seismic aftershock (1.1s) for 240% Damage across +35% Area, but 15% Less Attack Speed.',
+    color: '#b45309',
+    requiredTags: ['attack', 'aoe'],
+    aftershockDelay: 1.1,
+    aftershockScale: 2.4,
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.35 },
+      { stat: 'attackSpeed', kind: 'more', value: -0.15 },
+    ],
+  },
+  faultbreaker: {
+    id: 'faultbreaker',
+    name: 'Inscription of Faultbreaker',
+    shortName: 'Faultbreaker',
+    description: 'Shatters armored lines: +30% Armor Penetration and +30% More Attack Damage, but 15% Less Attack Speed.',
+    color: '#fbbf24',
+    requiredTags: ['attack'],
+    mods: [
+      { stat: 'armorPen', kind: 'flat', value: 0.3 },
+      { stat: 'damage', kind: 'more', value: 0.3, tags: ['attack'] },
+      { stat: 'attackSpeed', kind: 'more', value: -0.15 },
+    ],
+  },
+  tectonic_fissure: {
+    id: 'tectonic_fissure',
+    name: 'Inscription of Tectonic Fissure',
+    shortName: 'Tectonic Fissure',
+    description: 'Splits the earth with magma: converts 50% of Physical to Fire, +25% Area, and +35% Ignite Chance.',
+    color: '#f97316',
+    requiredTags: ['attack', 'aoe'],
+    relevantElements: ['physical', 'fire'],
+    conversions: [{ from: 'physical', to: 'fire', ratio: 0.5 }],
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.25 },
+      { stat: 'igniteChance', kind: 'flat', value: 0.35 },
+    ],
+  },
 };
 
 export interface ArtRankStep {
@@ -1638,26 +1736,31 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
       return { summary: '+16% Cooldown Recovery, +10% Lightning Pen, +10% More Damage', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.16 }, { stat: 'lightningPen', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
 
     case 'heavy_strike':
-      if (r % 2 === 0) return { summary: '+15% Armor Pen, +10% Crit Chance, +12% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.15 }, { stat: 'critChance', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
-      return { summary: '+15% Attack Speed, +28% Crit Multi, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'critMulti', kind: 'flat', value: 0.28 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+    case 'sunder_maul':
+      if (r % 2 === 0) return { summary: '+15% Armor Pen, +10% Crit Chance, +14% More Damage', mods: [{ stat: 'armorPen', kind: 'flat', value: 0.15 }, { stat: 'critChance', kind: 'flat', value: 0.1 }, { stat: 'damage', kind: 'more', value: 0.14 }] };
+      return { summary: '+15% Attack Speed, +28% Crit Multi, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'critMulti', kind: 'flat', value: 0.28 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
-    case 'molten_strike':
-    case 'frost_blades':
-    case 'lightning_strike':
+    case 'earthquake':
+      if (r % 2 === 0) return { summary: '+22% Area, +15% Armor Pen, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.22 }, { stat: 'armorPen', kind: 'flat', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+16% Cooldown Recovery, +18% Attack Speed, +12% More Damage', mods: [{ stat: 'cooldownRecovery', kind: 'inc', value: 0.16 }, { stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'hellfire_lash':
+    case 'shard_waltz':
+    case 'stormcall_lash':
       if (r === 3 || r === 6) return { summary: '+1 Strike Projectile, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
       if (r % 2 === 0) return { summary: '+16% Attack Speed, +15% Area, +10% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.16 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
       return { summary: '+8% Crit Chance, +20% Crit Multi, +12% More Damage', mods: [{ stat: 'critChance', kind: 'flat', value: 0.08 }, { stat: 'critMulti', kind: 'flat', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
-    case 'ice_spear':
+    case 'starfall_shard':
     case 'spark':
-    case 'essence_drain':
-    case 'soulrend':
+    case 'unmaking_bolt':
+    case 'word_of_unmaking':
       if (r === 3 || r === 6) return { summary: '+1 Projectile, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
       if (r % 2 === 0) return { summary: '+18% Cast Speed, +1 Pierce, +10% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.18 }, { stat: 'pierceCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
       return { summary: '+15% Projectile Speed, +12% More Damage', mods: [{ stat: 'projectileSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
-    case 'glacial_cascade':
-    case 'ball_lightning':
+    case 'drowning_grasp':
+    case 'sparklattice':
     case 'blight_zone':
       if (r % 2 === 0) return { summary: '+20% Area, +12% Cooldown Recovery, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'cooldownRecovery', kind: 'inc', value: 0.12 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
       return { summary: '+16% Cast Speed, +14% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.16 }, { stat: 'damage', kind: 'more', value: 0.14 }] };
@@ -1667,7 +1770,7 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
       if (r === 3 || r === 6) return { summary: '+1 Bolt/Chain, +12% More Damage', mods: [{ stat: artId === 'voltaic_sentry' ? 'chainCount' : 'projectileCount', kind: 'flat', value: 1 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
       return { summary: '+18% Cast Speed, +12% More Damage', mods: [{ stat: 'castSpeed', kind: 'inc', value: 0.18 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
-    case 'viper_strike':
+    case 'venom_fang':
       if (r % 2 === 0) return { summary: '+25% Poison Chance, +20% DoT Damage, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.25 }, { stat: 'dotDamage', kind: 'inc', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
       return { summary: '+18% Attack Speed, +15% Reach/Area, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 

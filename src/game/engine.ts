@@ -110,6 +110,16 @@ interface PendingAftershock {
   delay: number;
 }
 
+interface PendingThrust {
+  artId: string;
+  angle: number;
+  reach: number;
+  halfWidth: number;
+  reachOffset: number;
+  doReverse: boolean;
+  delay: number;
+}
+
 let nextEntityId = 1;
 
 export class HollowWarEngine {
@@ -168,6 +178,7 @@ export class HollowWarEngine {
   incursionPortals: IncursionPortal[] = [];
   pendingEchoes: PendingEcho[] = [];
   pendingAftershocks: PendingAftershock[] = [];
+  pendingThrusts: PendingThrust[] = [];
   pendingProjectiles: PendingProjectile[] = [];
   activeUltEffects: ActiveUltEffect[] = [];
   enemyHazards: EnemyHazardZone[] = [];
@@ -266,6 +277,7 @@ export class HollowWarEngine {
     this.incursionPortals = [];
     this.pendingEchoes = [];
     this.pendingAftershocks = [];
+    this.pendingThrusts = [];
     this.pendingProjectiles = [];
     this.activeUltEffects = [];
     this.enemyHazards = [];
@@ -504,6 +516,7 @@ export class HollowWarEngine {
     this.updateArts(dt);
     this.updateEchoes(dt);
     this.updateAftershocks(dt);
+    this.updatePendingThrusts(dt);
     this.updatePendingProjectiles(dt);
     this.updateActiveUltEffects(dt);
     this.updateMinions(dt);
@@ -610,6 +623,62 @@ export class HollowWarEngine {
           if (Math.hypot(e.x - shock.x, e.y - shock.y) <= shock.radius + e.radius) {
             this.applyArtHit(e, scaledSpec, extraMods, art);
           }
+        }
+      }
+    }
+  }
+
+  private updatePendingThrusts(dt: number): void {
+    for (let i = this.pendingThrusts.length - 1; i >= 0; i--) {
+      const th = this.pendingThrusts[i];
+      th.delay -= dt;
+      if (th.delay <= 0) {
+        this.pendingThrusts.splice(i, 1);
+        const art = this.arts.find((a) => a.artId === th.artId);
+        const def = ARTS[th.artId];
+        if (art && def) {
+          this.executeThrust(art, def, this.getArtExtraMods(art), this.player.aimAngle, th.reach, th.halfWidth, th.reachOffset, th.doReverse);
+        }
+      }
+    }
+  }
+
+  private executeThrust(
+    art: EquippedArt,
+    def: ArtDefinition,
+    extraMods: Modifier[],
+    baseAngle: number,
+    reach: number,
+    halfWidth: number,
+    reachOffset: number,
+    doReverse: boolean,
+  ): void {
+    const ox = this.player.x + Math.cos(baseAngle) * reachOffset;
+    const oy = this.player.y + Math.sin(baseAngle) * reachOffset;
+    const angles = doReverse ? [baseAngle, baseAngle + Math.PI] : [baseAngle];
+    for (const thrustAngle of angles) {
+      const dx = Math.cos(thrustAngle);
+      const dy = Math.sin(thrustAngle);
+      this.sweeps.push({
+        x: ox,
+        y: oy,
+        angle: thrustAngle,
+        radius: reach,
+        arcSpread: 0.15,
+        color: def.color,
+        life: 0.2,
+        maxLife: 0.2,
+        isThrust: true,
+      });
+      for (const e of this.enemies) {
+        if (e.life <= 0) continue;
+        const ex = e.x - ox;
+        const ey = e.y - oy;
+        const proj = Math.max(0, Math.min(reach, ex * dx + ey * dy));
+        const cx = ox + dx * proj;
+        const cy = oy + dy * proj;
+        if (Math.hypot(e.x - cx, e.y - cy) <= halfWidth + e.radius) {
+          this.applyArtHit(e, def, extraMods, art);
         }
       }
     }
@@ -844,17 +913,31 @@ export class HollowWarEngine {
           this.applyArtHit(e, def, extraMods, art);
         }
       }
-      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
-      if (aftershockIns?.aftershockDelay) {
+      if (def.innateAftershock) {
         this.pendingAftershocks.push({
           artId: def.id,
           x: this.player.x,
           y: this.player.y,
-          radius: radius * 0.9,
-          scale: aftershockIns.aftershockScale ?? 0.65,
-          color: aftershockIns.color,
-          delay: aftershockIns.aftershockDelay,
+          radius: radius * def.innateAftershock.radiusMult,
+          scale: def.innateAftershock.scale,
+          color: def.color,
+          delay: def.innateAftershock.delay,
         });
+      }
+      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
+      if (aftershockIns?.aftershockDelay) {
+        const count = aftershockIns.aftershockCount ?? 1;
+        for (let c = 0; c < count; c++) {
+          this.pendingAftershocks.push({
+            artId: def.id,
+            x: this.player.x,
+            y: this.player.y,
+            radius: radius * 0.9,
+            scale: aftershockIns.aftershockScale ?? 0.65,
+            color: aftershockIns.color,
+            delay: aftershockIns.aftershockDelay * (c + 1),
+          });
+        }
       }
       const waveCount = art.inscriptions.reduce((s, i) => s + (i.strikeWaveCount ?? 0), 0);
       if (waveCount > 0) {
@@ -967,51 +1050,38 @@ export class HollowWarEngine {
 
       const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
       if (aftershockIns?.aftershockDelay) {
-        this.pendingAftershocks.push({
-          artId: def.id,
-          x: ox + Math.cos(this.player.aimAngle) * (radius * 0.45),
-          y: oy + Math.sin(this.player.aimAngle) * (radius * 0.45),
-          radius: radius * 0.85,
-          scale: aftershockIns.aftershockScale ?? 0.65,
-          color: aftershockIns.color,
-          delay: aftershockIns.aftershockDelay,
-        });
+        const count = aftershockIns.aftershockCount ?? 1;
+        for (let c = 0; c < count; c++) {
+          this.pendingAftershocks.push({
+            artId: def.id,
+            x: ox + Math.cos(this.player.aimAngle) * (radius * 0.45),
+            y: oy + Math.sin(this.player.aimAngle) * (radius * 0.45),
+            radius: radius * 0.85,
+            scale: aftershockIns.aftershockScale ?? 0.65,
+            color: aftershockIns.color,
+            delay: aftershockIns.aftershockDelay * (c + 1),
+          });
+        }
       }
     } else if (def.behavior === 'thrust') {
       const areaScale = this.sheet.get('area', def.tags, extraMods);
       const reach = def.baseRadius * areaScale;
-      const halfWidth = 19 * Math.sqrt(areaScale);
+      const halfWidth = (def.thrustHalfWidth ?? 19) * Math.sqrt(areaScale);
       const reachOffset = art.inscriptions.reduce((s, i) => s + (i.sweepReachOffset ?? 0), 0);
-      const ox = this.player.x + Math.cos(this.player.aimAngle) * reachOffset;
-      const oy = this.player.y + Math.sin(this.player.aimAngle) * reachOffset;
       const doReverse = art.inscriptions.some((i) => i.reverseSweep);
-      const angles = doReverse ? [this.player.aimAngle, this.player.aimAngle + Math.PI] : [this.player.aimAngle];
-
-      for (const thrustAngle of angles) {
-        const dx = Math.cos(thrustAngle);
-        const dy = Math.sin(thrustAngle);
-        this.sweeps.push({
-          x: ox,
-          y: oy,
-          angle: thrustAngle,
-          radius: reach,
-          arcSpread: 0.15,
-          color: def.color,
-          life: 0.18,
-          maxLife: 0.18,
-          isThrust: true,
+      if (def.windupDelay && def.windupDelay > 0) {
+        this.spawnParticles(this.player.x, this.player.y, def.color, 6, 80);
+        this.pendingThrusts.push({
+          artId: def.id,
+          angle: this.player.aimAngle,
+          reach,
+          halfWidth,
+          reachOffset,
+          doReverse,
+          delay: def.windupDelay,
         });
-        for (const e of this.enemies) {
-          if (e.life <= 0) continue;
-          const ex = e.x - ox;
-          const ey = e.y - oy;
-          const proj = Math.max(0, Math.min(reach, ex * dx + ey * dy));
-          const cx = ox + dx * proj;
-          const cy = oy + dy * proj;
-          if (Math.hypot(e.x - cx, e.y - cy) <= halfWidth + e.radius) {
-            this.applyArtHit(e, def, extraMods, art);
-          }
-        }
+      } else {
+        this.executeThrust(art, def, extraMods, this.player.aimAngle, reach, halfWidth, reachOffset, doReverse);
       }
     } else if (def.behavior === 'cascade_line') {
       const areaScale = this.sheet.get('area', def.tags, extraMods);
@@ -1477,12 +1547,14 @@ export class HollowWarEngine {
     const innateAilmentMods: Modifier[] = [];
     if (art?.artId === 'poison_nova') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.6 });
-    } else if (art?.artId === 'viper_strike') {
+    } else if (art?.artId === 'venom_fang') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.55 });
     } else if (art?.artId === 'shambling_horde' || art?.artId === 'blight_zone') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.45 });
     } else if (art?.artId === 'rend') {
       innateAilmentMods.push({ stat: 'bleedChance', kind: 'flat', value: 0.65 });
+    } else if (art?.artId === 'sunder_maul') {
+      innateAilmentMods.push({ stat: 'armorPen', kind: 'flat', value: 0.25 });
     }
     const mergedMods = innateAilmentMods.length > 0 ? [...extraMods, ...innateAilmentMods] : extraMods;
 
@@ -1509,7 +1581,9 @@ export class HollowWarEngine {
     enemy.hitFlash = 0.1;
     this.totalDamageDealt += total;
 
-    const knockForce = art ? art.inscriptions.reduce((s, i) => s + (i.knockbackForce ?? 0), 0) : 0;
+    const knockForce =
+      (art ? art.inscriptions.reduce((s, i) => s + (i.knockbackForce ?? 0), 0) : 0) +
+      (art?.artId === 'sunder_maul' ? 28 : 0);
     if (knockForce > 0 && !enemy.isBoss && enemy.life > 0) {
       const kdx = enemy.x - this.player.x;
       const kdy = enemy.y - this.player.y;
@@ -1518,7 +1592,7 @@ export class HollowWarEngine {
       enemy.y += (kdy / kd) * knockForce;
     }
 
-    const leech = this.sheet.get('lifeLeech', spec.tags, extraMods) + (art?.artId === 'essence_drain' ? 0.03 : 0);
+    const leech = this.sheet.get('lifeLeech', spec.tags, extraMods) + (art?.artId === 'unmaking_bolt' ? 0.03 : 0);
     if (leech > 0) {
       const maxLife = this.sheet.get('life');
       this.player.life = Math.min(maxLife, this.player.life + total * leech);

@@ -332,13 +332,16 @@ describe('Hollow War Combat SDK', () => {
     expect(spawned[0].life).toBeGreaterThan(8);
   });
 
-  it('supports Shambling Horde zombies, Viper Strike thrust, and expanding Blighted Ground', () => {
-    expect(ARTS.viper_strike.behavior).toBe('thrust');
+  it('supports Shambling Horde zombies, Venom Fang thrust, Heavy Strike windup, Earthquake aftershock, and expanding Blighted Ground', () => {
+    expect(ARTS.venom_fang.behavior).toBe('thrust');
+    expect(ARTS.heavy_strike.behavior).toBe('thrust');
+    expect(ARTS.heavy_strike.windupDelay).toBeGreaterThan(0.2);
+    expect(ARTS.earthquake.innateAftershock).toBeDefined();
     expect(ARTS.shambling_horde.behavior).toBe('minion');
 
     const engine = new HollowWarEngine();
     engine.startRun('necromancer');
-    for (const id of ['shambling_horde', 'blight_zone', 'viper_strike']) {
+    for (const id of ['shambling_horde', 'blight_zone', 'venom_fang', 'earthquake']) {
       engine.openDraft();
       engine.draftOptions = [
         {
@@ -363,6 +366,7 @@ describe('Hollow War Combat SDK', () => {
     const zombies = engine.minions.filter((m) => m.kind === 'zombie');
     expect(zombies.length).toBe(4);
     expect(engine.sweeps.some((s) => s.isThrust)).toBe(true);
+    expect(engine.pendingAftershocks.some((a) => a.artId === 'earthquake')).toBe(true);
 
     const blight = engine.groundZones.find((gz) => gz.artId === 'blight_zone')!;
     expect(blight).toBeDefined();

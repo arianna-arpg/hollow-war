@@ -6,6 +6,7 @@ import {
   MAX_ACTIVE_ARTS,
   MAX_ART_RANK,
   type ArtDefinition,
+  type InscriptionDef,
 } from '../content/skills.ts';
 import {
   calculateRunShards,
@@ -40,11 +41,15 @@ import type {
 } from './entities.ts';
 import { createEnemy, pickArchetypeForTime, resetEnemyIds } from './spawner.ts';
 
-export type GamePhase = 'vessel_select' | 'archive' | 'playing' | 'draft' | 'paused' | 'game_over';
+export type GamePhase = 'vessel_select' | 'archive' | 'playing' | 'draft' | 'inscribe' | 'paused' | 'game_over';
+
+export interface InscribeChoiceState {
+  artId: string;
+  options: Array<{ ins: InscriptionDef; dpsDeltaPct: number }>;
+}
 
 export interface DraftOption {
   card: UpgradeCardDef;
-  compatibleArtIds?: string[];
   dpsDeltaPct?: number;
   summaryText: string;
 }
@@ -129,6 +134,7 @@ export class HollowWarEngine {
   particles: Particle[] = [];
 
   draftOptions: DraftOption[] = [];
+  inscribeChoice: InscribeChoiceState | null = null;
 
   private spawnTimer = 0;
   private nextBossAt = 60;
@@ -217,6 +223,7 @@ export class HollowWarEngine {
     this.floatingTexts = [];
     this.particles = [];
     this.draftOptions = [];
+    this.inscribeChoice = null;
 
     this.elapsed = 0;
     this.kills = 0;
@@ -1788,6 +1795,16 @@ export class HollowWarEngine {
     return tags;
   }
 
+  private getCompatibleInscriptions(art: EquippedArt): InscriptionDef[] {
+    const def = ARTS[art.artId];
+    if (!def) return [];
+    return Object.values(INSCRIPTIONS).filter((ins) => {
+      if (art.inscriptions.some((i) => i.id === ins.id)) return false;
+      if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
+      return true;
+    });
+  }
+
   private rollDraftOptions(count: number, excludeIds: Set<string> = new Set()): DraftOption[] {
     const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
     const affinityBoost = 1.2 + getArchiveBonuses(this.archive).affinityLevel * 1.4;
@@ -1795,7 +1812,6 @@ export class HollowWarEngine {
 
     interface WeightedCandidate {
       card: UpgradeCardDef;
-      compatibleArtIds?: string[];
       weight: number;
     }
 
@@ -1817,34 +1833,35 @@ export class HollowWarEngine {
         continue;
       }
 
-      if (card.category === 'inscription' && card.inscriptionId) {
-        const ins = INSCRIPTIONS[card.inscriptionId];
-        if (!ins) continue;
-        const compatible = this.arts
-          .filter((ar) => {
-            const def = ARTS[ar.artId];
-            if (!def) return false;
-            if (ar.inscriptions.length >= maxIns) return false;
-            if (ar.inscriptions.some((i) => i.id === ins.id)) return false;
-            if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
-            return true;
-          })
-          .map((ar) => ar.artId);
-
-        if (compatible.length === 0) continue;
-        const shared = card.tags.filter((t) => activeTags.has(t)).length;
-        eligible.push({ card, compatibleArtIds: compatible, weight: 1 + shared * affinityBoost });
-        continue;
-      }
-
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
       const shared = card.tags.filter((t) => activeTags.has(t)).length;
       eligible.push({ card, weight: 1 + shared * affinityBoost });
     }
 
-    // Weighted sampling without replacement, capping Inscriptions to at most 1 per 3-card draft
-    // (unless non-inscription candidates run out) so drafts never feel flooded.
+    // Inverted Inscription system: offer one "Inscribe: <Active Art>" card per active Art with open sockets
+    for (const ar of this.arts) {
+      if (ar.inscriptions.length >= maxIns) continue;
+      const compatible = this.getCompatibleInscriptions(ar);
+      if (compatible.length === 0) continue;
+      const def = ARTS[ar.artId];
+      const cardId = `inscribe_${ar.artId}`;
+      if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
+      eligible.push({
+        card: {
+          id: cardId,
+          name: `Inscribe: ${def.name}`,
+          category: 'inscription',
+          rarity: 'rare',
+          artId: ar.artId,
+          description: `Choose an Inscription from up to 4 compatible runes to etch onto ${def.name} (${ar.inscriptions.length}/${maxIns} etched).`,
+          tags: def.tags,
+        },
+        weight: 2.2 + affinityBoost * 0.8,
+      });
+    }
+
+    // Weighted sampling without replacement, capping Inscribe cards to at most 1 per 3-card draft
     const picked: WeightedCandidate[] = [];
     const pool = [...eligible];
     let inscriptionCount = 0;
@@ -1873,10 +1890,17 @@ export class HollowWarEngine {
       if (idx >= 0) pool.splice(idx, 1);
     }
 
-    return picked.map(({ card, compatibleArtIds }) => this.buildDraftOption(card, compatibleArtIds));
+    return picked.map(({ card }) => this.buildDraftOption(card));
   }
 
-  private buildDraftOption(card: UpgradeCardDef, compatibleArtIds?: string[]): DraftOption {
+  private buildDraftOption(card: UpgradeCardDef): DraftOption {
+    if (card.category === 'inscription') {
+      return {
+        card,
+        summaryText: 'Etch Inscription',
+      };
+    }
+
     const beforeDps = this.getTotalEstimatedDps();
     const forked = this.sheet.fork();
 
@@ -1884,25 +1908,16 @@ export class HollowWarEngine {
     if (card.conversions) forked.setConversions(`preview_${card.id}`, card.conversions);
     if (card.extras) forked.setExtras(`preview_${card.id}`, card.extras);
 
-    const previewTargetId = compatibleArtIds?.[0];
     let afterDps = 0;
     for (const ar of this.arts) {
       const def = ARTS[ar.artId];
       const extraMods = [...this.getArtExtraMods(ar)];
       const extraConvs = ar.inscriptions.flatMap((i) => i.conversions ?? []);
       const extraExtras = ar.inscriptions.flatMap((i) => i.extras ?? []);
-      let echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
+      const echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
 
       if (card.category === 'art' && card.artId === ar.artId) {
         extraMods.push(...getArtRankStep(ar.artId, ar.level + 1).mods);
-      } else if (card.category === 'inscription' && card.inscriptionId && previewTargetId === ar.artId) {
-        const ins = INSCRIPTIONS[card.inscriptionId];
-        if (ins) {
-          extraMods.push(...ins.mods);
-          if (ins.conversions) extraConvs.push(...ins.conversions);
-          if (ins.extras) extraExtras.push(...ins.extras);
-          if (ins.echoChance) echoMult += ins.echoChance;
-        }
       }
       afterDps += previewSkillDps(
         forked,
@@ -1922,24 +1937,27 @@ export class HollowWarEngine {
 
     const dpsDeltaPct = beforeDps > 0 ? ((afterDps - beforeDps) / beforeDps) * 100 : 0;
     const summaryText =
-      card.category === 'inscription'
-        ? `Inscription (Choose Art)`
-        : card.category === 'oath'
-          ? 'Keystone Oath'
-          : card.category === 'art'
-            ? this.arts.some((a) => a.artId === card.artId)
-              ? 'Deepen Art'
-              : `New Art (${this.arts.length}/${MAX_ACTIVE_ARTS})`
-            : card.category.toUpperCase();
+      card.category === 'oath'
+        ? 'Keystone Oath'
+        : card.category === 'art'
+          ? this.arts.some((a) => a.artId === card.artId)
+            ? 'Deepen Art'
+            : `New Art (${this.arts.length}/${MAX_ACTIVE_ARTS})`
+          : card.category.toUpperCase();
 
-    return { card, compatibleArtIds, dpsDeltaPct, summaryText };
+    return { card, dpsDeltaPct, summaryText };
   }
 
-  pickDraftOption(index: number, chosenArtId?: string): void {
+  pickDraftOption(index: number): void {
     const opt = this.draftOptions[index];
     if (!opt) return;
 
-    const { card, compatibleArtIds } = opt;
+    const { card } = opt;
+    if (card.category === 'inscription' && card.artId) {
+      this.openInscribeForArt(card.artId);
+      return;
+    }
+
     const stacks = (this.acquiredCards.get(card.id) ?? 0) + 1;
     this.acquiredCards.set(card.id, stacks);
 
@@ -1953,19 +1971,62 @@ export class HollowWarEngine {
 
     if (card.category === 'art' && card.artId) {
       this.addOrRankArt(card.artId);
-    } else if (card.category === 'inscription' && card.inscriptionId) {
-      const targetId = chosenArtId && compatibleArtIds?.includes(chosenArtId) ? chosenArtId : compatibleArtIds?.[0];
-      const target = this.arts.find((a) => a.artId === targetId);
-      const ins = INSCRIPTIONS[card.inscriptionId];
-      const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
-      if (target && ins && target.inscriptions.length < maxIns) {
-        target.inscriptions.push(ins);
-      }
     }
 
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
 
+    this.setPhase('playing');
+  }
+
+  private openInscribeForArt(artId: string): void {
+    const art = this.arts.find((a) => a.artId === artId);
+    if (!art) {
+      this.setPhase('playing');
+      return;
+    }
+    const def = ARTS[art.artId];
+    const compatible = this.getCompatibleInscriptions(art);
+    for (let i = compatible.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [compatible[i], compatible[j]] = [compatible[j], compatible[i]];
+    }
+    const chosen = compatible.slice(0, 4);
+    const beforeArtDps = this.getArtPreview(art).estimatedDps;
+
+    const options = chosen.map((ins) => {
+      const extraMods = [...this.getArtExtraMods(art), ...ins.mods];
+      const extraConvs = [...art.inscriptions.flatMap((i) => i.conversions ?? []), ...(ins.conversions ?? [])];
+      const extraExtras = [...art.inscriptions.flatMap((i) => i.extras ?? []), ...(ins.extras ?? [])];
+      const echoMult = 1 + art.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0) + (ins.echoChance ?? 0);
+      const afterArtDps = previewSkillDps(
+        this.sheet,
+        def,
+        extraMods,
+        def.baseProjectiles,
+        extraConvs,
+        extraExtras,
+        echoMult,
+      ).estimatedDps;
+      const dpsDeltaPct = beforeArtDps > 0 ? ((afterArtDps - beforeArtDps) / beforeArtDps) * 100 : 0;
+      return { ins, dpsDeltaPct };
+    });
+
+    this.inscribeChoice = { artId, options };
+    this.setPhase('inscribe');
+  }
+
+  pickInscription(inscriptionId: string): void {
+    if (!this.inscribeChoice) return;
+    const target = this.arts.find((a) => a.artId === this.inscribeChoice!.artId);
+    const ins = INSCRIPTIONS[inscriptionId];
+    const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
+    if (target && ins && target.inscriptions.length < maxIns) {
+      target.inscriptions.push(ins);
+    }
+    this.inscribeChoice = null;
+    this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
+    this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
     this.setPhase('playing');
   }
 }

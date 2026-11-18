@@ -137,12 +137,36 @@ describe('Hollow War Combat SDK', () => {
     engine.arts[0].inscriptions.push(INSCRIPTIONS.concentrated_core, INSCRIPTIONS.crimson_leech);
     expect(engine.arts[0].inscriptions.length).toBe(MAX_INSCRIPTIONS_PER_ART);
 
-    // Since Cleave is full (2/2 Inscriptions), no Inscription cards should be offered
+    // Since Cleave is full (2/2 Inscriptions), no Inscribe cards should be offered
     engine.openDraft();
     expect(engine.draftOptions.every((o) => o.card.category !== 'inscription')).toBe(true);
 
+    // Add a second Art with open sockets, pick its Inscribe card, and verify the 'inscribe' phase
+    const whirlwind = engine.addOrRankArt('whirlwind');
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'inscribe_whirlwind',
+          name: 'Inscribe: Whirlwind',
+          category: 'inscription',
+          rarity: 'rare',
+          artId: 'whirlwind',
+          description: 'Test',
+          tags: ['attack', 'aoe', 'physical'],
+        },
+        summaryText: 'Etch Inscription',
+      },
+    ];
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('inscribe');
+    expect(engine.inscribeChoice?.artId).toBe('whirlwind');
+    expect(engine.inscribeChoice?.options.length).toBeGreaterThan(0);
+    const chosenId = engine.inscribeChoice!.options[0].ins.id;
+    engine.pickInscription(chosenId);
+    expect(engine.phase).toBe('playing');
+    expect(whirlwind.inscriptions.some((i) => i.id === chosenId)).toBe(true);
+
     // Fill active Arts to MAX_ACTIVE_ARTS (4)
-    engine.addOrRankArt('whirlwind');
     engine.addOrRankArt('summon_skeleton');
     engine.addOrRankArt('fire_mine');
     expect(engine.arts.length).toBe(MAX_ACTIVE_ARTS);

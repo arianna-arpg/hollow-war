@@ -138,34 +138,18 @@ export function renderModal(
         <div class="grid-3">
           ${engine.draftOptions
             .map((opt, idx) => {
-              const { card, compatibleArtIds, dpsDeltaPct, summaryText } = opt;
+              const { card, dpsDeltaPct, summaryText } = opt;
               const deltaHtml =
-                dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
-                  ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
-                  : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
+                card.category === 'inscription'
+                  ? `<span style="font-size:12px;color:#38bdf8;font-weight:700">Choose from 4 Runes</span>`
+                  : dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
+                    ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
+                    : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
 
               const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
 
-              const actionFooter =
-                card.category === 'inscription' && compatibleArtIds && compatibleArtIds.length > 0
-                  ? `<div style="border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">${deltaHtml}</div>
-                      <div style="display:flex;flex-wrap:wrap;gap:6px">
-                        ${compatibleArtIds
-                          .map((artId) => {
-                            const artDef = ARTS[artId];
-                            return `<button class="btn btn-primary" data-draft-art="${idx}:${artId}" style="flex:1;min-width:110px;font-size:11px">Etch onto ${artDef.name}</button>`;
-                          })
-                          .join('')}
-                      </div>
-                    </div>`
-                  : `<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
-                      ${deltaHtml}
-                      <span style="font-size:12px;font-weight:700;color:#fbbf24">Claim →</span>
-                    </div>`;
-
               return `
-                <div class="choice-card ${rarityClass}" ${card.category !== 'inscription' ? `data-draft="${idx}"` : 'style="cursor:default"'}>
+                <div class="choice-card ${rarityClass}" data-draft="${idx}">
                   <div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                       <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#f59e0b">${summaryText}</span>
@@ -190,7 +174,10 @@ export function renderModal(
                       ${card.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
                     </div>
                   </div>
-                  ${actionFooter}
+                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                    ${deltaHtml}
+                    <span style="font-size:12px;font-weight:700;color:#fbbf24">${card.category === 'inscription' ? 'Select Rune →' : 'Claim →'}</span>
+                  </div>
                 </div>
               `;
             })
@@ -204,13 +191,6 @@ export function renderModal(
         engine.pickDraftOption(Number(el.dataset.draft));
       });
     });
-    container.querySelectorAll<HTMLElement>('[data-draft-art]').forEach((el) => {
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const [idxStr, artId] = el.dataset.draftArt!.split(':');
-        engine.pickDraftOption(Number(idxStr), artId);
-      });
-    });
     container.querySelectorAll<HTMLElement>('[data-banish]').forEach((el) => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -218,6 +198,50 @@ export function renderModal(
       });
     });
     container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());
+    return;
+  }
+
+  if (engine.phase === 'inscribe' && engine.inscribeChoice) {
+    const targetDef = ARTS[engine.inscribeChoice.artId];
+    const targetArt = engine.arts.find((a) => a.artId === engine.inscribeChoice!.artId);
+    container.innerHTML = `
+      <div class="modal-card">
+        <div class="modal-title" style="color:${targetDef.color}">Inscribe ${targetDef.name}</div>
+        <div class="modal-subtitle">
+          Choose one compatible Inscription to embed into ${targetDef.name} (Rank ${targetArt?.level ?? 1}).
+          ${targetArt?.inscriptions.length ? `Currently etched: ${targetArt.inscriptions.map((i) => i.shortName).join(', ')}` : ''}
+        </div>
+        <div class="grid-4">
+          ${engine.inscribeChoice.options
+            .map(({ ins, dpsDeltaPct }) => {
+              const deltaHtml =
+                Math.abs(dpsDeltaPct) >= 0.5
+                  ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Art DPS</span>`
+                  : `<span style="font-size:12px;color:#94a3b8">Utility / Specialization</span>`;
+              return `
+                <div class="choice-card" data-inscribe="${ins.id}" style="border-color:${ins.color}66">
+                  <div>
+                    <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:${ins.color};margin-bottom:4px">Inscription</div>
+                    <div style="font-size:16px;font-weight:800;margin-bottom:8px">${ins.name}</div>
+                    <div style="font-size:12px;color:#e2e8f0;line-height:1.45">${ins.description}</div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                    ${deltaHtml}
+                    <span style="font-size:12px;font-weight:700;color:#fbbf24">Etch →</span>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll<HTMLElement>('[data-inscribe]').forEach((el) => {
+      el.addEventListener('click', () => {
+        engine.pickInscription(el.dataset.inscribe!);
+      });
+    });
     return;
   }
 

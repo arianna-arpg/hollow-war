@@ -286,6 +286,15 @@ export function renderModal(
 
         <div class="inspector-grid">
           <div class="inspector-panel">
+            <h3>Class Ultimate ([Space] / [Shift])</h3>
+            <div style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(148,163,184,0.12)">
+              <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px">
+                <span style="color:${engine.vessel.color}">${engine.vessel.ultimate.name}</span>
+                <span style="color:#94a3b8">${engine.vessel.ultimate.cooldown}s Base CD</span>
+              </div>
+              <div style="font-size:12px;color:#cbd5e1;margin-top:3px">${engine.vessel.ultimate.description}</div>
+            </div>
+
             <h3>Arts & Inscriptions (Hover for Details)</h3>
             ${engine.arts
               .map((ar) => {

@@ -77,6 +77,9 @@ export function renderHud(
 
   const hotbarKey = `${engine.sheet.revision}|${engine.arts.map((a) => `${a.artId}:${a.level}:${a.inscriptions.map((i) => i.id).join(',')}`).join(';')}`;
 
+  const ult = engine.vessel.ultimate;
+  const ultReady = engine.player.ultimateCooldown <= 0;
+
   const topHtml = `
     <div class="hud-vitals">
       <div class="bar-row">
@@ -112,11 +115,17 @@ export function renderHud(
       </div>
     </div>
 
-    <div class="hud-center-stats">
-      <div class="stat-chip">TIME <strong>${mins}:${secs}</strong></div>
-      <div class="stat-chip">SLAIN <strong>${engine.kills}</strong></div>
-      <div class="stat-chip">EST. DPS <strong>${estDps}</strong></div>
-      <div class="stat-chip">[SPACE] ${engine.vessel.ultimate.name.toUpperCase()} <strong>${engine.player.ultimateCooldown <= 0 ? 'READY' : engine.player.ultimateCooldown.toFixed(1) + 's'}</strong></div>
+    <div class="hud-center-stats" style="pointer-events:auto">
+      <div class="stat-chip">TIME <strong id="hud-time">${mins}:${secs}</strong></div>
+      <div class="stat-chip">SLAIN <strong id="hud-kills">${engine.kills}</strong></div>
+      <div class="stat-chip">EST. DPS <strong id="hud-dps">${estDps}</strong></div>
+      <div class="stat-chip hw-tooltip-wrap" style="cursor:help">
+        [SPACE] ${ult.name.toUpperCase()} <strong id="hud-ult-cd" style="color:${ultReady ? '#4ade80' : '#f59e0b'}">${ultReady ? 'READY' : engine.player.ultimateCooldown.toFixed(1) + 's'}</strong>
+        <div class="hw-tooltip hw-tooltip-down">
+          <div style="font-weight:800;color:${engine.vessel.color};margin-bottom:3px">${ult.name} (${ult.cooldown}s Cooldown)</div>
+          <div style="color:#cbd5e1">${ult.description}</div>
+        </div>
+      </div>
     </div>
 
     <div class="hud-actions">
@@ -125,10 +134,10 @@ export function renderHud(
     </div>
   `;
 
-  const existingTop = container.querySelector('.hud-top');
+  const existingVitals = container.querySelector('.hud-vitals');
   const existingRack = container.querySelector('.skill-rack');
 
-  if (!existingTop || !existingRack) {
+  if (!existingVitals || !existingRack) {
     container.innerHTML = `
       <div class="hud-top">${topHtml}</div>
       <div class="hud-bottom">
@@ -136,14 +145,32 @@ export function renderHud(
       </div>
     `;
     lastHotbarKey = hotbarKey;
+    container.querySelector('#btn-inspector')?.addEventListener('click', onToggleInspector);
+    container.querySelector('#btn-auto-aim')?.addEventListener('click', onToggleAutoAim);
   } else {
-    existingTop.innerHTML = topHtml;
+    // Update vitals and text nodes in-place so hover tooltips on Ultimate and Hotbar never flicker
+    const vitalsTmp = document.createElement('div');
+    vitalsTmp.innerHTML = topHtml;
+    const nextVitals = vitalsTmp.querySelector('.hud-vitals');
+    if (nextVitals) existingVitals.innerHTML = nextVitals.innerHTML;
+
+    const tEl = container.querySelector('#hud-time');
+    const kEl = container.querySelector('#hud-kills');
+    const dEl = container.querySelector('#hud-dps');
+    const uEl = container.querySelector<HTMLElement>('#hud-ult-cd');
+    const aimBtn = container.querySelector('#btn-auto-aim');
+    if (tEl) tEl.textContent = `${mins}:${secs}`;
+    if (kEl) kEl.textContent = String(engine.kills);
+    if (dEl) dEl.textContent = String(estDps);
+    if (uEl) {
+      uEl.textContent = ultReady ? 'READY' : `${engine.player.ultimateCooldown.toFixed(1)}s`;
+      uEl.style.color = ultReady ? '#4ade80' : '#f59e0b';
+    }
+    if (aimBtn) aimBtn.textContent = `[Q] Aim: ${engine.autoAim ? 'AUTO' : 'MOUSE'}`;
+
     if (hotbarKey !== lastHotbarKey) {
       existingRack.innerHTML = buildHotbarHtml(engine);
       lastHotbarKey = hotbarKey;
     }
   }
-
-  container.querySelector('#btn-inspector')?.addEventListener('click', onToggleInspector);
-  container.querySelector('#btn-auto-aim')?.addEventListener('click', onToggleAutoAim);
 }

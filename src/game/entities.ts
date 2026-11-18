@@ -219,3 +219,16 @@ export interface PendingProjectile {
   delay: number;
   proj: Omit<Projectile, 'id'>;
 }
+
+export interface ActiveUltEffect {
+  id: number;
+  kind: 'pillar_of_flame' | 'stormcrown';
+  x: number;
+  y: number;
+  startRadius: number;
+  endRadius: number;
+  radius: number;
+  life: number;
+  maxLife: number;
+  tickTimer: number;
+}

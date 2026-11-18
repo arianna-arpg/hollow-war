@@ -574,6 +574,38 @@ export function renderGame(
     ctx.restore();
   }
 
+  // Active Ultimate Effects (Contracting Pillar of Flame Ring & Stormcrown Aura)
+  for (const fx of engine.activeUltEffects) {
+    ctx.save();
+    ctx.translate(fx.x, fx.y);
+    const fade = Math.min(1, fx.life / 0.4);
+    if (fx.kind === 'pillar_of_flame') {
+      ctx.globalAlpha = fade * 0.85;
+      ctx.strokeStyle = '#f97316';
+      ctx.shadowColor = '#fb923c';
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(0, 0, fx.radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, Math.max(4, fx.radius - 4), 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (fx.kind === 'stormcrown') {
+      ctx.globalAlpha = fade * 0.35;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.setLineDash([12, 8]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, fx.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // Novas
   for (const n of engine.novas) {
     const alpha = Math.max(0, n.life / n.maxLife);

@@ -23,6 +23,7 @@ import { ProcRuntime, type ProcEventContext } from '../sdk/proc-runtime.ts';
 import { StatSheet } from '../sdk/stat-sheet.ts';
 import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview } from '../sdk/types.ts';
 import type {
+  ActiveUltEffect,
   Enemy,
   EquippedArt,
   FloatingText,
@@ -131,6 +132,7 @@ export class HollowWarEngine {
   incursionPortals: IncursionPortal[] = [];
   pendingEchoes: PendingEcho[] = [];
   pendingProjectiles: PendingProjectile[] = [];
+  activeUltEffects: ActiveUltEffect[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
@@ -222,6 +224,7 @@ export class HollowWarEngine {
     this.incursionPortals = [];
     this.pendingEchoes = [];
     this.pendingProjectiles = [];
+    this.activeUltEffects = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
@@ -275,24 +278,20 @@ export class HollowWarEngine {
 
     switch (ult.id) {
       case 'stormcrown': {
-        // Calls down 12 lightning bolts across nearby foes
-        const stormSpec: SkillDamageSpec = { baseDamage: { lightning: 44 }, baseCooldown: 1, tags: ['spell', 'lightning'] };
-        const pool = this.enemies.filter((e) => e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) < 360);
-        for (let i = 0; i < 12; i++) {
-          const target = pool.length > 0 ? pool[i % pool.length] : null;
-          if (target) {
-            this.arcs.push({
-              points: [
-                { x: target.x + (Math.random() - 0.5) * 30, y: target.y - 160 },
-                { x: target.x, y: target.y },
-              ],
-              color: '#38bdf8',
-              life: 0.22,
-              maxLife: 0.22,
-            });
-            this.applyArtHit(target, stormSpec, [{ stat: 'shockChance', kind: 'flat', value: 0.6 }]);
-          }
-        }
+        // Calls down lightning strikes across the battlefield over 3.6 seconds
+        const r = 300 * this.sheet.get('area', ['aoe', 'lightning']);
+        this.activeUltEffects.push({
+          id: nextEntityId++,
+          kind: 'stormcrown',
+          x: this.player.x,
+          y: this.player.y,
+          startRadius: r,
+          endRadius: r,
+          radius: r,
+          life: 3.6,
+          maxLife: 3.6,
+          tickTimer: 0.05,
+        });
         break;
       }
       case 'red_hour': {
@@ -361,15 +360,20 @@ export class HollowWarEngine {
         break;
       }
       case 'pillar_of_flame': {
-        // Burning ring that sears & ignites every foe caught within
-        const r = 230 * this.sheet.get('area', ['aoe', 'fire']);
-        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#f97316', life: 0.36, maxLife: 0.36 });
-        const fireSpec: SkillDamageSpec = { baseDamage: { fire: 78 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire'] };
-        for (const e of this.enemies) {
-          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
-            this.applyArtHit(e, fireSpec, [{ stat: 'igniteChance', kind: 'flat', value: 1.0 }]);
-          }
-        }
+        // Hollow Wake Pillar of Flame: burning ring that contracts inward over 2.6s, searing enemies on its rim
+        const startR = 235 * this.sheet.get('area', ['aoe', 'fire']);
+        this.activeUltEffects.push({
+          id: nextEntityId++,
+          kind: 'pillar_of_flame',
+          x: this.player.x,
+          y: this.player.y,
+          startRadius: startR,
+          endRadius: 24,
+          radius: startR,
+          life: 2.6,
+          maxLife: 2.6,
+          tickTimer: 0.05,
+        });
         break;
       }
       case 'doom_bell': {
@@ -452,6 +456,7 @@ export class HollowWarEngine {
     this.updateArts(dt);
     this.updateEchoes(dt);
     this.updatePendingProjectiles(dt);
+    this.updateActiveUltEffects(dt);
     this.updateMinions(dt);
     this.updateTotems(dt);
     this.updateTraps(dt);
@@ -541,6 +546,55 @@ export class HollowWarEngine {
         if (dist <= e.radius + 17) {
           e.orbitHitCooldown = def.baseCooldown / Math.max(0.3, this.sheet.get('attackSpeed', def.tags, extraMods));
           this.applyArtHit(e, def, extraMods, art);
+        }
+      }
+    }
+  }
+
+  private updateActiveUltEffects(dt: number): void {
+    for (let i = this.activeUltEffects.length - 1; i >= 0; i--) {
+      const fx = this.activeUltEffects[i];
+      fx.life -= dt;
+      if (fx.life <= 0) {
+        this.activeUltEffects.splice(i, 1);
+        continue;
+      }
+
+      const progress = 1 - fx.life / fx.maxLife;
+      fx.radius = fx.startRadius + (fx.endRadius - fx.startRadius) * progress;
+
+      fx.tickTimer -= dt;
+      if (fx.tickTimer <= 0) {
+        if (fx.kind === 'pillar_of_flame') {
+          fx.tickTimer = 0.32;
+          const fireSpec: SkillDamageSpec = { baseDamage: { fire: 28 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire'] };
+          for (const e of this.enemies) {
+            if (e.life <= 0) continue;
+            const d = Math.hypot(e.x - fx.x, e.y - fx.y);
+            // Hits enemies along the contracting ring rim (with generous 55px band)
+            if (Math.abs(d - fx.radius) <= 55 + e.radius) {
+              this.applyArtHit(e, fireSpec, [{ stat: 'igniteChance', kind: 'flat', value: 0.35 }]);
+            }
+          }
+        } else if (fx.kind === 'stormcrown') {
+          fx.tickTimer = 0.22;
+          fx.x = this.player.x;
+          fx.y = this.player.y;
+          const stormSpec: SkillDamageSpec = { baseDamage: { lightning: 34 }, baseCooldown: 1, tags: ['spell', 'lightning'] };
+          const pool = this.enemies.filter((e) => e.life > 0 && Math.hypot(e.x - fx.x, e.y - fx.y) <= fx.radius);
+          if (pool.length > 0) {
+            const target = pool[Math.floor(Math.random() * pool.length)];
+            this.arcs.push({
+              points: [
+                { x: target.x + (Math.random() - 0.5) * 28, y: target.y - 150 },
+                { x: target.x, y: target.y },
+              ],
+              color: '#38bdf8',
+              life: 0.2,
+              maxLife: 0.2,
+            });
+            this.applyArtHit(target, stormSpec, [{ stat: 'shockChance', kind: 'flat', value: 0.5 }]);
+          }
         }
       }
     }

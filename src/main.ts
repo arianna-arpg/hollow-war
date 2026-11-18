@@ -55,7 +55,7 @@ window.addEventListener('keydown', (e) => {
   if (k === ' ' || k === 'shift') {
     if (engine.phase === 'playing') {
       e.preventDefault();
-      engine.triggerDash();
+      engine.triggerUltimate();
     }
   }
   if (k === 'q' && engine.phase === 'playing') {

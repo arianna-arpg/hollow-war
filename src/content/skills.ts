@@ -1,6 +1,10 @@
 import type { SkillDamageSpec } from '../sdk/combat-resolver.ts';
 import type { ConversionRule, ExtraDamageRule, Modifier, SkillTag } from '../sdk/types.ts';
 
+export const MAX_ACTIVE_ARTS = 4;
+export const MAX_ART_RANK = 8;
+export const MAX_INSCRIPTIONS_PER_ART = 2;
+
 export type ArtBehavior = 'projectile' | 'chain' | 'orbit' | 'nova' | 'sweep';
 
 export interface ArtDefinition extends SkillDamageSpec {
@@ -46,6 +50,38 @@ export const ARTS: Record<string, ArtDefinition> = {
     projectileSpeed: 550,
     tags: ['spell', 'projectile', 'fire'],
   },
+  flame_arrow: {
+    id: 'flame_arrow',
+    name: 'Flame Arrow',
+    description:
+      'Draws a searing shaft of ember-tipped iron that pierces ranks and kindles fierce ignites.',
+    color: '#fb923c',
+    behavior: 'projectile',
+    baseDamage: { physical: 14, fire: 18 },
+    damageEffectiveness: 1.05,
+    baseCooldown: 0.68,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 6,
+    projectileSpeed: 640,
+    tags: ['attack', 'projectile', 'fire', 'physical'],
+  },
+  frostbolt: {
+    id: 'frostbolt',
+    name: 'Frostbolt',
+    description:
+      'Conjures a razor shard of winter-glass that chills targets and flies swiftly across the barrow.',
+    color: '#38bdf8',
+    behavior: 'projectile',
+    baseDamage: { cold: 23 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 0.56,
+    baseCritChance: 0.05,
+    baseProjectiles: 2,
+    baseRadius: 6,
+    projectileSpeed: 610,
+    tags: ['spell', 'projectile', 'cold'],
+  },
   cleave: {
     id: 'cleave',
     name: 'Cleave',
@@ -60,6 +96,36 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 118,
     tags: ['attack', 'aoe', 'physical'],
+  },
+  rend: {
+    id: 'rend',
+    name: 'Rend',
+    description:
+      'Whips a rapid twin-edged slash in front of you, opening jagged arteries with high critical precision.',
+    color: '#f43f5e',
+    behavior: 'sweep',
+    baseDamage: { physical: 22 },
+    damageEffectiveness: 0.95,
+    baseCooldown: 0.48,
+    baseCritChance: 0.1,
+    baseProjectiles: 1,
+    baseRadius: 96,
+    tags: ['attack', 'aoe', 'physical'],
+  },
+  whirlwind: {
+    id: 'whirlwind',
+    name: 'Whirlwind',
+    description:
+      'Spins a tempest of steel around your vessel, battering every foe within reach.',
+    color: '#e2e8f0',
+    behavior: 'nova',
+    baseDamage: { physical: 25 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 0.92,
+    baseCritChance: 0.05,
+    baseProjectiles: 1,
+    baseRadius: 126,
+    tags: ['attack', 'aoe', 'nova', 'physical'],
   },
   fan_of_blades: {
     id: 'fan_of_blades',
@@ -76,6 +142,22 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseRadius: 5,
     projectileSpeed: 620,
     tags: ['attack', 'projectile', 'physical'],
+  },
+  soul_rend: {
+    id: 'soul_rend',
+    name: 'Soul Rend',
+    description:
+      'Releases twin bolts of grave-violet ruin that eat into flesh with chaos and poison.',
+    color: '#c084fc',
+    behavior: 'projectile',
+    baseDamage: { chaos: 22 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 0.62,
+    baseCritChance: 0.04,
+    baseProjectiles: 2,
+    baseRadius: 7,
+    projectileSpeed: 500,
+    tags: ['spell', 'projectile', 'chaos'],
   },
   poison_nova: {
     id: 'poison_nova',
@@ -122,6 +204,21 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 2,
     baseRadius: 82,
     tags: ['attack', 'orbit', 'physical', 'fire'],
+  },
+  consecration: {
+    id: 'consecration',
+    name: 'Consecration',
+    description:
+      'Pulses a sanctified ring of golden ember around you, scorching the wicked and the risen.',
+    color: '#fbbf24',
+    behavior: 'nova',
+    baseDamage: { fire: 20, physical: 10 },
+    damageEffectiveness: 1.15,
+    baseCooldown: 1.35,
+    baseCritChance: 0.04,
+    baseProjectiles: 1,
+    baseRadius: 158,
+    tags: ['spell', 'aoe', 'nova', 'fire'],
   },
   frost_nova: {
     id: 'frost_nova',

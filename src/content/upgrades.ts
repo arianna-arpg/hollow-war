@@ -1,4 +1,5 @@
 import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec, SkillTag } from '../sdk/types.ts';
+import { MAX_ART_RANK } from './skills.ts';
 
 export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'oath';
 export type UpgradeCategory = 'art' | 'inscription' | 'doctrine' | 'oath';
@@ -11,53 +12,103 @@ export interface UpgradeCardDef {
   description: string;
   tags: readonly SkillTag[];
   maxStacks?: number;
-  /** For category === 'art' */
   artId?: string;
-  /** For category === 'inscription' */
   inscriptionId?: string;
-  /** Modifiers applied to the player StatSheet */
   mods?: Modifier[];
   conversions?: ConversionRule[];
   extras?: ExtraDamageRule[];
   procs?: ProcSpec[];
-  /** Optional trade-off note shown on Keystone Oaths */
   tradeoff?: string;
 }
 
 export const UPGRADE_POOL: UpgradeCardDef[] = [
-  // === ARTS (Acquire a new Art or deepen its mastery for +22% More Damage) ===
+  // === ARTS (Max 4 Active Arts, up to Rank 8) ===
   {
     id: 'art_firebolt',
     name: 'Art: Firebolt',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'firebolt',
     description: 'Master Firebolt (or deepen its rank for +22% More Art Damage).',
     tags: ['spell', 'projectile', 'fire'],
+  },
+  {
+    id: 'art_flame_arrow',
+    name: 'Art: Flame Arrow',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'flame_arrow',
+    description: 'Master Flame Arrow (or deepen its rank for +22% More Art Damage).',
+    tags: ['attack', 'projectile', 'fire', 'physical'],
+  },
+  {
+    id: 'art_frostbolt',
+    name: 'Art: Frostbolt',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'frostbolt',
+    description: 'Master Frostbolt (or deepen its rank for +1 Shard & +22% More Art Damage).',
+    tags: ['spell', 'projectile', 'cold'],
   },
   {
     id: 'art_cleave',
     name: 'Art: Cleave',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'cleave',
     description: 'Master Cleave (or deepen its rank for +22% More Art Damage & +12% Area).',
     tags: ['attack', 'aoe', 'physical'],
+  },
+  {
+    id: 'art_rend',
+    name: 'Art: Rend',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'rend',
+    description: 'Master Rend (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['attack', 'aoe', 'physical'],
+  },
+  {
+    id: 'art_whirlwind',
+    name: 'Art: Whirlwind',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'whirlwind',
+    description: 'Master Whirlwind (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['attack', 'aoe', 'nova', 'physical'],
   },
   {
     id: 'art_fan_of_blades',
     name: 'Art: Fan of Blades',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'fan_of_blades',
     description: 'Master Fan of Blades (or deepen its rank for +1 Dagger & +22% More Art Damage).',
     tags: ['attack', 'projectile', 'physical'],
+  },
+  {
+    id: 'art_soul_rend',
+    name: 'Art: Soul Rend',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'soul_rend',
+    description: 'Master Soul Rend (or deepen its rank for +1 Bolt & +22% More Art Damage).',
+    tags: ['spell', 'projectile', 'chaos'],
   },
   {
     id: 'art_poison_nova',
     name: 'Art: Poison Nova',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'poison_nova',
     description: 'Master Poison Nova (or deepen its rank for +22% More Art Damage & +12% Area).',
     tags: ['spell', 'aoe', 'nova', 'chaos'],
@@ -67,6 +118,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     name: 'Art: Chain Lightning',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'chain_lightning',
     description: 'Master Chain Lightning (or deepen its rank for +1 Chain & +22% More Art Damage).',
     tags: ['spell', 'chain', 'lightning'],
@@ -76,21 +128,33 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     name: 'Art: Hammer of Judgment',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'hammer_of_judgment',
     description: 'Master Hammer of Judgment (or add +1 Orbiting Hammer & +22% More Art Damage).',
     tags: ['attack', 'orbit', 'physical', 'fire'],
+  },
+  {
+    id: 'art_consecration',
+    name: 'Art: Consecration',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'consecration',
+    description: 'Master Consecration (or deepen its rank for +22% More Art Damage & +12% Area).',
+    tags: ['spell', 'aoe', 'nova', 'fire'],
   },
   {
     id: 'art_frost_nova',
     name: 'Art: Frost Nova',
     category: 'art',
     rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
     artId: 'frost_nova',
     description: 'Master Frost Nova (or deepen its rank for +22% More Art Damage & +12% Area).',
     tags: ['spell', 'aoe', 'nova', 'cold'],
   },
 
-  // === INSCRIPTIONS (Bind directly onto a compatible Art) ===
+  // === INSCRIPTIONS (Player chooses which compatible Art to etch onto; max 2 per Art) ===
   {
     id: 'ins_split_volley',
     name: 'Inscription of Split Volley',
@@ -165,6 +229,75 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
   },
 
   // === DOCTRINES & CONDUITS ===
+  {
+    id: 'doc_lodestone',
+    name: 'Doctrine of the Lodestone',
+    category: 'doctrine',
+    rarity: 'common',
+    maxStacks: 3,
+    description: 'Draws Mortal Essence from afar: +65 Pickup Radius, +10% Move Speed, +15% Essence Gain.',
+    tags: [],
+    mods: [
+      { stat: 'pickupRadius', kind: 'flat', value: 65 },
+      { stat: 'moveSpeed', kind: 'inc', value: 0.1 },
+      { stat: 'essenceGain', kind: 'inc', value: 0.15 },
+    ],
+  },
+  {
+    id: 'doc_tempered_steel',
+    name: 'Doctrine of Tempered Steel',
+    category: 'doctrine',
+    rarity: 'common',
+    maxStacks: 3,
+    description: 'Hones every edge and shaft: +25% Physical Damage, +12 Added Physical, +10% Armor Pen.',
+    tags: ['physical'],
+    mods: [
+      { stat: 'physicalDamage', kind: 'inc', value: 0.25 },
+      { stat: 'addedPhysical', kind: 'flat', value: 12 },
+      { stat: 'armorPen', kind: 'flat', value: 0.1 },
+    ],
+  },
+  {
+    id: 'doc_storm_eye',
+    name: 'Doctrine of the Storm-Eye',
+    category: 'doctrine',
+    rarity: 'common',
+    maxStacks: 3,
+    description: 'Quickens the tempest: +25% Lightning Damage, +18% Shock Chance, +10% Cooldown Recovery.',
+    tags: ['lightning'],
+    mods: [
+      { stat: 'lightningDamage', kind: 'inc', value: 0.25 },
+      { stat: 'shockChance', kind: 'flat', value: 0.18 },
+      { stat: 'cooldownRecovery', kind: 'inc', value: 0.1 },
+    ],
+  },
+  {
+    id: 'doc_hoarfrost',
+    name: 'Doctrine of Hoarfrost',
+    category: 'doctrine',
+    rarity: 'common',
+    maxStacks: 3,
+    description: 'Binds winter to your breath: +25% Cold Damage, +12 Added Cold, +25% Chill Chance.',
+    tags: ['cold'],
+    mods: [
+      { stat: 'coldDamage', kind: 'inc', value: 0.25 },
+      { stat: 'addedCold', kind: 'flat', value: 12 },
+      { stat: 'chillChance', kind: 'flat', value: 0.25 },
+    ],
+  },
+  {
+    id: 'doc_duelist',
+    name: 'Doctrine of the Duelist',
+    category: 'doctrine',
+    rarity: 'rare',
+    maxStacks: 3,
+    description: 'Every opening is fatal: +10% Crit Chance and +25% Crit Multiplier.',
+    tags: [],
+    mods: [
+      { stat: 'critChance', kind: 'flat', value: 0.1 },
+      { stat: 'critMulti', kind: 'flat', value: 0.25 },
+    ],
+  },
   {
     id: 'doc_ember_forged',
     name: 'Doctrine of the Furnace',
@@ -313,7 +446,7 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     ],
   },
 
-  // === KEYSTONE OATHS (Build-defining mutators) ===
+  // === KEYSTONE OATHS ===
   {
     id: 'oath_glass_spire',
     name: 'Oath of the Glass Spire',

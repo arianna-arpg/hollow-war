@@ -103,7 +103,7 @@ export interface SweepArc {
 
 export interface Pickup {
   id: number;
-  kind: 'xp' | 'life' | 'ward';
+  kind: 'essence' | 'life' | 'ward' | 'magnet';
   x: number;
   y: number;
   value: number;

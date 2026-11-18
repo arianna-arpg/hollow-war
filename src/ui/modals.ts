@@ -23,7 +23,7 @@ export function renderModal(
         <div class="modal-title">HOLLOW WAR</div>
         <div class="modal-subtitle">
           Step onto the Ashen Warfront against the Demon and Undead hosts. Choose a Hollow Wake class to shape your Arts, Inscriptions, Doctrines, and Oaths.
-          <span style="color:#f59e0b">WASD / Arrows to move · Space / Shift to Dash · Q to toggle Aim · Tab for Build Inspector</span>
+          <span style="color:#f59e0b">WASD / Arrows to move · Space / Shift for Class Ultimate · Q to toggle Aim · Tab for Build Inspector</span>
         </div>
         <div class="grid-3">
           ${VESSELS.map(
@@ -33,8 +33,11 @@ export function renderModal(
                 <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${v.color}">${v.title}</div>
                 <div style="font-size:18px;font-weight:800;margin:2px 0 8px">${v.name}</div>
                 <div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:10px">${v.description}</div>
-                <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">
                   Opening Art: <strong style="color:#f8fafc">${ARTS[v.startingArtId].name}</strong>
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">
+                  Ultimate: <strong style="color:${v.color}">${v.ultimate.name}</strong> — ${v.ultimate.description}
                 </div>
                 <div class="tag-row">
                   ${v.synergyHints.map((h) => `<span class="tag-pill">${h}</span>`).join('')}
@@ -72,7 +75,7 @@ export function renderModal(
         <div class="grid-3">
           ${engine.draftOptions
             .map((opt, idx) => {
-              const { card, dpsDeltaPct, summaryText } = opt;
+              const { card, compatibleArtIds, dpsDeltaPct, summaryText } = opt;
               const deltaHtml =
                 dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
                   ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
@@ -80,8 +83,26 @@ export function renderModal(
 
               const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
 
+              const actionFooter =
+                card.category === 'inscription' && compatibleArtIds && compatibleArtIds.length > 0
+                  ? `<div style="border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">${deltaHtml}</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        ${compatibleArtIds
+                          .map((artId) => {
+                            const artDef = ARTS[artId];
+                            return `<button class="btn btn-primary" data-draft-art="${idx}:${artId}" style="flex:1;min-width:110px;font-size:11px">Etch onto ${artDef.name}</button>`;
+                          })
+                          .join('')}
+                      </div>
+                    </div>`
+                  : `<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                      ${deltaHtml}
+                      <span style="font-size:12px;font-weight:700;color:#fbbf24">Claim →</span>
+                    </div>`;
+
               return `
-                <div class="choice-card ${rarityClass}" data-draft="${idx}">
+                <div class="choice-card ${rarityClass}" ${card.category !== 'inscription' ? `data-draft="${idx}"` : 'style="cursor:default"'}>
                   <div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                       <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#f59e0b">${summaryText}</span>
@@ -94,10 +115,7 @@ export function renderModal(
                       ${card.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
                     </div>
                   </div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
-                    ${deltaHtml}
-                    <span style="font-size:12px;font-weight:700;color:#fbbf24">Claim →</span>
-                  </div>
+                  ${actionFooter}
                 </div>
               `;
             })
@@ -109,6 +127,13 @@ export function renderModal(
     container.querySelectorAll<HTMLElement>('[data-draft]').forEach((el) => {
       el.addEventListener('click', () => {
         engine.pickDraftOption(Number(el.dataset.draft));
+      });
+    });
+    container.querySelectorAll<HTMLElement>('[data-draft-art]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const [idxStr, artId] = el.dataset.draftArt!.split(':');
+        engine.pickDraftOption(Number(idxStr), artId);
       });
     });
     container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());

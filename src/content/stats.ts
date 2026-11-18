@@ -12,6 +12,7 @@ export const HOLLOW_WAR_STAT_RULES = new StatRules({
   // Mobility & Utility
   moveSpeed: { label: 'Move Speed', base: 230, min: 80, max: 600 },
   pickupRadius: { label: 'Pickup Radius', base: 85, min: 30 },
+  essenceGain: { label: 'Mortal Essence Gain', base: 1, min: 0.1, percent: true },
   dashCooldown: { label: 'Dash Cooldown', base: 2.2, min: 0.5 },
 
   // Offense & Scaling

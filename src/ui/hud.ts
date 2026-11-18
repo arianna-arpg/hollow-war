@@ -51,8 +51,8 @@ export function renderHud(
         }
         <div class="bar-row" style="margin-bottom:0">
           <div class="bar-label">
-            <span>LVL ${engine.player.level}</span>
-            <span>${Math.floor(engine.player.xp)} / ${engine.player.xpToNext} XP</span>
+            <span>LVL ${engine.player.level} · ESSENCE</span>
+            <span>${Math.floor(engine.player.xp)} / ${engine.player.xpToNext}</span>
           </div>
           <div class="bar-track">
             <div class="bar-fill" style="width:${xpPct}%;background:#f59e0b"></div>
@@ -64,7 +64,7 @@ export function renderHud(
         <div class="stat-chip">TIME <strong>${mins}:${secs}</strong></div>
         <div class="stat-chip">SLAIN <strong>${engine.kills}</strong></div>
         <div class="stat-chip">EST. DPS <strong>${estDps}</strong></div>
-        <div class="stat-chip">DASH <strong>${engine.player.dashCooldown <= 0 ? 'READY' : engine.player.dashCooldown.toFixed(1) + 's'}</strong></div>
+        <div class="stat-chip">[SPACE] ${engine.vessel.ultimate.name.toUpperCase()} <strong>${engine.player.ultimateCooldown <= 0 ? 'READY' : engine.player.ultimateCooldown.toFixed(1) + 's'}</strong></div>
       </div>
 
       <div class="hud-actions">

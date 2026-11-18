@@ -1,5 +1,12 @@
 import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec } from '../sdk/types.ts';
 
+export interface ClassUltimateSpec {
+  id: string;
+  name: string;
+  cooldown: number;
+  description: string;
+}
+
 export interface VesselDefinition {
   id: string;
   name: string;
@@ -9,6 +16,7 @@ export interface VesselDefinition {
   color: string;
   glowColor: string;
   startingArtId: string;
+  ultimate: ClassUltimateSpec;
   mods: Modifier[];
   conversions?: ConversionRule[];
   extras?: ExtraDamageRule[];
@@ -23,10 +31,16 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Arcane Elementalist',
     lookId: 'class_magician',
     description:
-      'A disciplined scholar of the three storms—fire, frost, and lightning. Wears an innate Ward and slips through danger with crackling Dash discharges.',
+      'A disciplined scholar of the three storms—fire, frost, and lightning. Wears an innate Ward and commands elemental convergence.',
     color: '#7a9aff',
     glowColor: 'rgba(122, 154, 255, 0.45)',
     startingArtId: 'firebolt',
+    ultimate: {
+      id: 'tempest_convergence',
+      name: 'Tempest Convergence',
+      cooldown: 11,
+      description: 'Unleash a ring of hoarfrost and 8 seeking arcane bolts across the warfront.',
+    },
     mods: [
       { stat: 'life', kind: 'flat', value: -10 },
       { stat: 'ward', kind: 'flat', value: 45 },
@@ -34,19 +48,7 @@ export const VESSELS: VesselDefinition[] = [
       { stat: 'chainCount', kind: 'flat', value: 1 },
       { stat: 'damage', kind: 'more', value: 0.15, when: 'warded' },
     ],
-    procs: [
-      {
-        id: 'magician_dash_arc',
-        name: 'Slipstream Discharge',
-        description: 'On Dash: Unleash a crackling Arc Bolt at nearby enemies.',
-        trigger: 'onDash',
-        chance: 1.0,
-        icd: 0.2,
-        effectId: 'arc_discharge',
-        power: 32,
-      },
-    ],
-    synergyHints: ['Warded More Damage', 'Cast Speed & Chain', 'Dash-Cast Loops'],
+    synergyHints: ['Warded More Damage', 'Cast Speed & Chain', 'Tempest Convergence'],
   },
   {
     id: 'warrior',
@@ -58,6 +60,12 @@ export const VESSELS: VesselDefinition[] = [
     color: '#d8b06a',
     glowColor: 'rgba(216, 176, 106, 0.45)',
     startingArtId: 'cleave',
+    ultimate: {
+      id: 'red_hour',
+      name: 'Red Hour',
+      cooldown: 12,
+      description: 'Erupt in an iron shockwave and enter 4s of Bloodlust (+45% Attack Speed, +25% Move Speed, +15% Life Leech).',
+    },
     mods: [
       { stat: 'life', kind: 'flat', value: 35 },
       { stat: 'ward', kind: 'flat', value: 40 },
@@ -77,7 +85,7 @@ export const VESSELS: VesselDefinition[] = [
         power: 62,
       },
     ],
-    synergyHints: ['Sweeping Cleave', 'Armor & Ward-Break', 'Bleed Pressure'],
+    synergyHints: ['Sweeping Cleave', 'Armor & Ward-Break', 'Red Hour Bloodlust'],
   },
   {
     id: 'rogue',
@@ -89,6 +97,12 @@ export const VESSELS: VesselDefinition[] = [
     color: '#8fa189',
     glowColor: 'rgba(143, 161, 137, 0.45)',
     startingArtId: 'fan_of_blades',
+    ultimate: {
+      id: 'shadow_step',
+      name: 'Shadow Step',
+      cooldown: 9,
+      description: 'Blink swiftly with brief invulnerability, leaving a 7-blade fan of lethal daggers in your wake.',
+    },
     mods: [
       { stat: 'moveSpeed', kind: 'inc', value: 0.16 },
       { stat: 'critChance', kind: 'flat', value: 0.08 },
@@ -109,7 +123,7 @@ export const VESSELS: VesselDefinition[] = [
         power: 24,
       },
     ],
-    synergyHints: ['Crit-Proc Chains', 'Piercing Volleys', 'Low-Life Adrenaline'],
+    synergyHints: ['Crit-Proc Chains', 'Piercing Volleys', 'Shadow Step Blink'],
   },
   {
     id: 'necromancer',
@@ -121,6 +135,12 @@ export const VESSELS: VesselDefinition[] = [
     color: '#a855f7',
     glowColor: 'rgba(168, 85, 247, 0.45)',
     startingArtId: 'poison_nova',
+    ultimate: {
+      id: 'grave_reckoning',
+      name: 'Grave Reckoning',
+      cooldown: 12,
+      description: 'Detonate a massive ring of blight that inflicts heavy Poison and drains Life from every foe struck.',
+    },
     mods: [
       { stat: 'poisonChance', kind: 'flat', value: 0.4 },
       { stat: 'dotDamage', kind: 'inc', value: 0.3 },
@@ -140,7 +160,7 @@ export const VESSELS: VesselDefinition[] = [
         power: 26,
       },
     ],
-    synergyHints: ['Stacking Poison', 'Chaos Conversion', 'Kill-Sustain'],
+    synergyHints: ['Stacking Poison', 'Chaos Conversion', 'Grave Reckoning'],
   },
   {
     id: 'pyromancer',
@@ -151,7 +171,13 @@ export const VESSELS: VesselDefinition[] = [
       'Carries the furnace in their ribs. Converts Physical force into searing Fire and detonates the slain in blooming cinder.',
     color: '#f97316',
     glowColor: 'rgba(249, 115, 22, 0.45)',
-    startingArtId: 'firebolt',
+    startingArtId: 'flame_arrow',
+    ultimate: {
+      id: 'pillar_of_flame',
+      name: 'Pillar of Flame',
+      cooldown: 11,
+      description: 'Call down a colossal inferno around your vessel, scorching and igniting every foe in range.',
+    },
     mods: [
       { stat: 'fireDamage', kind: 'inc', value: 0.28 },
       { stat: 'igniteChance', kind: 'flat', value: 0.3 },
@@ -170,7 +196,7 @@ export const VESSELS: VesselDefinition[] = [
         power: 30,
       },
     ],
-    synergyHints: ['Physical → Fire', 'Ignite Scaling', 'Corpse Eruptions'],
+    synergyHints: ['Physical → Fire', 'Ignite Scaling', 'Pillar of Flame'],
   },
   {
     id: 'guardian',
@@ -182,6 +208,12 @@ export const VESSELS: VesselDefinition[] = [
     color: '#f59e0b',
     glowColor: 'rgba(245, 158, 11, 0.45)',
     startingArtId: 'hammer_of_judgment',
+    ultimate: {
+      id: 'aegis_sanctum',
+      name: 'Aegis Sanctum',
+      cooldown: 13,
+      description: 'Restore 100% of Maximum Ward instantly and slam down a consecrated shockwave.',
+    },
     mods: [
       { stat: 'life', kind: 'flat', value: 30 },
       { stat: 'ward', kind: 'flat', value: 70 },
@@ -201,6 +233,6 @@ export const VESSELS: VesselDefinition[] = [
         power: 70,
       },
     ],
-    synergyHints: ['Orbiting Hammers', 'Massive Ward', 'Ward-Break Novas'],
+    synergyHints: ['Orbiting Hammers', 'Massive Ward', 'Aegis Sanctum'],
   },
 ];

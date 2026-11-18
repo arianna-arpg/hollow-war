@@ -1,4 +1,11 @@
-import { ARTS, INSCRIPTIONS, type ArtDefinition } from '../content/skills.ts';
+import {
+  ARTS,
+  INSCRIPTIONS,
+  MAX_ACTIVE_ARTS,
+  MAX_ART_RANK,
+  MAX_INSCRIPTIONS_PER_ART,
+  type ArtDefinition,
+} from '../content/skills.ts';
 import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
 import { UPGRADE_POOL, type UpgradeCardDef } from '../content/upgrades.ts';
 import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
@@ -23,7 +30,7 @@ export type GamePhase = 'vessel_select' | 'playing' | 'draft' | 'paused' | 'game
 
 export interface DraftOption {
   card: UpgradeCardDef;
-  targetArtId?: string;
+  compatibleArtIds?: string[];
   dpsDeltaPct?: number;
   summaryText: string;
 }
@@ -68,6 +75,8 @@ export class HollowWarEngine {
     level: 1,
     dashTimer: 0,
     dashCooldown: 0,
+    ultimateCooldown: 0,
+    bloodlustTimer: 0,
     dashDirX: 1,
     dashDirY: 0,
     invulnTimer: 0,
@@ -155,6 +164,8 @@ export class HollowWarEngine {
       level: 1,
       dashTimer: 0,
       dashCooldown: 0,
+      ultimateCooldown: 0,
+      bloodlustTimer: 0,
       dashDirX: 1,
       dashDirY: 0,
       invulnTimer: 0,
@@ -198,31 +209,154 @@ export class HollowWarEngine {
     this.onPhaseChange?.(next);
   }
 
-  triggerDash(): void {
+  triggerUltimate(): void {
     if (this.phase !== 'playing') return;
-    if (this.player.dashCooldown > 0 || this.player.dashTimer > 0) return;
+    if (this.player.ultimateCooldown > 0) return;
 
-    let dx = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
-    let dy = (this.input.down ? 1 : 0) - (this.input.up ? 1 : 0);
-    if (dx === 0 && dy === 0) {
-      dx = Math.cos(this.player.aimAngle);
-      dy = Math.sin(this.player.aimAngle);
-    } else {
-      const len = Math.hypot(dx, dy);
-      dx /= len;
-      dy /= len;
+    const ult = this.vessel.ultimate;
+    const cdr = Math.max(0.3, this.sheet.get('cooldownRecovery'));
+    this.player.ultimateCooldown = ult.cooldown / cdr;
+    this.screenShake = 10;
+
+    this.floatingTexts.push({
+      x: this.player.x,
+      y: this.player.y - 30,
+      vy: -24,
+      text: ult.name.toUpperCase(),
+      color: this.vessel.color,
+      life: 1.0,
+      maxLife: 1.0,
+      scale: 1.15,
+    });
+
+    switch (ult.id) {
+      case 'tempest_convergence': {
+        // Frost pulse + 8 seeking arcane bolts
+        const r = 185 * this.sheet.get('area', ['aoe', 'cold']);
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 12, maxRadius: r, color: '#67e8f9', life: 0.35, maxLife: 0.35 });
+        const pulseSpec: SkillDamageSpec = { baseDamage: { cold: 42 }, baseCooldown: 1, tags: ['spell', 'aoe', 'cold'] };
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            this.applyArtHit(e, pulseSpec, []);
+          }
+        }
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: this.player.x,
+            y: this.player.y,
+            vx: Math.cos(a) * 580,
+            vy: Math.sin(a) * 580,
+            radius: 7,
+            color: '#7a9aff',
+            artId: 'frostbolt',
+            pierceLeft: 1,
+            life: 1.6,
+            hitIds: new Set(),
+            homing: true,
+          });
+        }
+        break;
+      }
+      case 'red_hour': {
+        // Massive iron shockwave + 4s Bloodlust
+        const r = 190 * this.sheet.get('area', ['aoe', 'physical']);
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#ef4444', life: 0.32, maxLife: 0.32 });
+        const slamSpec: SkillDamageSpec = { baseDamage: { physical: 68 }, baseCooldown: 1, tags: ['attack', 'aoe', 'physical'] };
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            this.applyArtHit(e, slamSpec, []);
+          }
+        }
+        this.player.bloodlustTimer = 4.0;
+        this.sheet.setSource('ult_red_hour', [
+          { stat: 'attackSpeed', kind: 'inc', value: 0.45 },
+          { stat: 'moveSpeed', kind: 'inc', value: 0.25 },
+          { stat: 'lifeLeech', kind: 'flat', value: 0.15 },
+        ]);
+        break;
+      }
+      case 'shadow_step': {
+        // Rapid blink + 7-blade fan
+        let dx = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
+        let dy = (this.input.down ? 1 : 0) - (this.input.up ? 1 : 0);
+        if (dx === 0 && dy === 0) {
+          dx = Math.cos(this.player.aimAngle);
+          dy = Math.sin(this.player.aimAngle);
+        } else {
+          const len = Math.hypot(dx, dy);
+          dx /= len;
+          dy /= len;
+        }
+        this.player.dashDirX = dx;
+        this.player.dashDirY = dy;
+        this.player.dashTimer = 0.18;
+        this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.38);
+        this.spawnParticles(this.player.x, this.player.y, '#8fa189', 16, 180);
+        const baseA = Math.atan2(-dy, -dx);
+        for (let i = 0; i < 7; i++) {
+          const a = baseA + (i - 3) * 0.22;
+          this.projectiles.push({
+            id: nextEntityId++,
+            x: this.player.x,
+            y: this.player.y,
+            vx: Math.cos(a) * 640,
+            vy: Math.sin(a) * 640,
+            radius: 6,
+            color: '#c084fc',
+            artId: 'fan_of_blades',
+            pierceLeft: 2,
+            life: 1.3,
+            hitIds: new Set(),
+          });
+        }
+        break;
+      }
+      case 'grave_reckoning': {
+        // Blight ring + Poison + Life drain
+        const r = 220 * this.sheet.get('area', ['aoe', 'chaos']);
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#a855f7', life: 0.38, maxLife: 0.38 });
+        const blightSpec: SkillDamageSpec = { baseDamage: { chaos: 54 }, baseCooldown: 1, tags: ['spell', 'aoe', 'chaos'] };
+        let hits = 0;
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            this.applyArtHit(e, blightSpec, []);
+            e.ailments.push({ type: 'poison', dps: 16 * this.sheet.get('dotDamage'), remaining: 4, maxDuration: 4 });
+            hits++;
+          }
+        }
+        if (hits > 0) {
+          this.player.life = Math.min(this.sheet.get('life'), this.player.life + Math.min(35, hits * 3));
+        }
+        break;
+      }
+      case 'pillar_of_flame': {
+        // Colossal fire inferno + guaranteed ignite
+        const r = 230 * this.sheet.get('area', ['aoe', 'fire']);
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#f97316', life: 0.36, maxLife: 0.36 });
+        const fireSpec: SkillDamageSpec = { baseDamage: { fire: 78 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire'] };
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            this.applyArtHit(e, fireSpec, [{ stat: 'igniteChance', kind: 'flat', value: 1.0 }]);
+          }
+        }
+        break;
+      }
+      case 'aegis_sanctum': {
+        // Restore 100% Ward + consecrated shockwave
+        this.player.ward = this.sheet.get('ward');
+        const r = 200 * this.sheet.get('area', ['aoe', 'fire']);
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#fbbf24', life: 0.34, maxLife: 0.34 });
+        const slamSpec: SkillDamageSpec = { baseDamage: { physical: 40, fire: 40 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire', 'physical'] };
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            this.applyArtHit(e, slamSpec, []);
+          }
+        }
+        break;
+      }
     }
-
-    this.player.dashDirX = dx;
-    this.player.dashDirY = dy;
-    this.player.dashTimer = 0.16;
-    this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.22);
-    this.player.dashCooldown = this.sheet.get('dashCooldown');
-
-    this.spawnParticles(this.player.x, this.player.y, this.vessel.color, 10, 140);
-    this.procs.emit('onDash', this.elapsed, { x: this.player.x, y: this.player.y }, (spec, ctx) =>
-      this.executeProc(spec, ctx),
-    );
   }
 
   addOrRankArt(artId: string): EquippedArt {
@@ -247,10 +381,18 @@ export class HollowWarEngine {
           });
           if (this.artId === 'chain_lightning') {
             mods.push({ stat: 'chainCount', kind: 'flat', value: this.level - 1 });
-          } else if (this.artId === 'hammer_of_judgment' || this.artId === 'fan_of_blades') {
-            mods.push({ stat: 'projectileCount', kind: 'flat', value: this.level - 1 });
+          } else if (
+            this.artId === 'hammer_of_judgment' ||
+            this.artId === 'fan_of_blades' ||
+            this.artId === 'frostbolt' ||
+            this.artId === 'soul_rend'
+          ) {
+            mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
           } else if (
             this.artId === 'cleave' ||
+            this.artId === 'rend' ||
+            this.artId === 'whirlwind' ||
+            this.artId === 'consecration' ||
             this.artId === 'poison_nova' ||
             this.artId === 'frost_nova'
           ) {
@@ -651,7 +793,7 @@ export class HollowWarEngine {
 
     this.pickups.push({
       id: nextEntityId++,
-      kind: 'xp',
+      kind: 'essence',
       x: enemy.x,
       y: enemy.y,
       value: enemy.xpValue,
@@ -660,7 +802,18 @@ export class HollowWarEngine {
       magnetized: false,
     });
 
-    if (Math.random() < 0.045) {
+    if (enemy.isBoss || Math.random() < 0.015) {
+      this.pickups.push({
+        id: nextEntityId++,
+        kind: 'magnet',
+        x: enemy.x - 10,
+        y: enemy.y,
+        value: 1,
+        color: '#fde047',
+        radius: 8,
+        magnetized: false,
+      });
+    } else if (Math.random() < 0.045) {
       this.pickups.push({
         id: nextEntityId++,
         kind: Math.random() < 0.65 ? 'life' : 'ward',
@@ -757,6 +910,13 @@ export class HollowWarEngine {
 
     if (this.player.invulnTimer > 0) this.player.invulnTimer -= dt;
     if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
+    if (this.player.ultimateCooldown > 0) this.player.ultimateCooldown -= dt;
+    if (this.player.bloodlustTimer > 0) {
+      this.player.bloodlustTimer -= dt;
+      if (this.player.bloodlustTimer <= 0) {
+        this.sheet.removeSource('ult_red_hour');
+      }
+    }
 
     if (this.player.dashTimer > 0) {
       this.player.dashTimer -= dt;
@@ -961,14 +1121,28 @@ export class HollowWarEngine {
       }
 
       if (dist <= this.player.radius + pk.radius + 4) {
-        if (pk.kind === 'xp') {
-          this.player.xp += pk.value;
+        if (pk.kind === 'essence') {
+          this.player.xp += pk.value * this.sheet.get('essenceGain');
           if (this.player.xp >= this.player.xpToNext) {
             this.player.xp -= this.player.xpToNext;
             this.player.level += 1;
             this.player.xpToNext = Math.round(45 * Math.pow(1.24, this.player.level - 1));
             this.openDraft();
           }
+        } else if (pk.kind === 'magnet') {
+          for (const other of this.pickups) {
+            if (other.kind === 'essence') other.magnetized = true;
+          }
+          this.floatingTexts.push({
+            x: this.player.x,
+            y: this.player.y - 26,
+            vy: -28,
+            text: 'LODESTONE SURGE!',
+            color: '#fde047',
+            life: 0.9,
+            maxLife: 0.9,
+            scale: 1.1,
+          });
         } else if (pk.kind === 'life') {
           this.player.life = Math.min(this.sheet.get('life'), this.player.life + pk.value);
         } else if (pk.kind === 'ward') {
@@ -1066,28 +1240,42 @@ export class HollowWarEngine {
   }
 
   private rollDraftOptions(count: number): DraftOption[] {
-    const eligible: Array<{ card: UpgradeCardDef; targetArtId?: string }> = [];
+    const eligible: Array<{ card: UpgradeCardDef; compatibleArtIds?: string[] }> = [];
 
     for (const card of UPGRADE_POOL) {
-      const stacks = this.acquiredCards.get(card.id) ?? 0;
-      if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
+      if (card.category === 'art' && card.artId) {
+        const active = this.arts.find((a) => a.artId === card.artId);
+        if (active) {
+          if (active.level >= MAX_ART_RANK) continue;
+        } else {
+          if (this.arts.length >= MAX_ACTIVE_ARTS) continue;
+        }
+        eligible.push({ card });
+        continue;
+      }
 
       if (card.category === 'inscription' && card.inscriptionId) {
         const ins = INSCRIPTIONS[card.inscriptionId];
         if (!ins) continue;
-        const compatible = this.arts.filter((ar) => {
-          const def = ARTS[ar.artId];
-          if (!def) return false;
-          if (ar.inscriptions.some((i) => i.id === ins.id)) return false;
-          if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
-          return true;
-        });
+        const compatible = this.arts
+          .filter((ar) => {
+            const def = ARTS[ar.artId];
+            if (!def) return false;
+            if (ar.inscriptions.length >= MAX_INSCRIPTIONS_PER_ART) return false;
+            if (ar.inscriptions.some((i) => i.id === ins.id)) return false;
+            if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
+            return true;
+          })
+          .map((ar) => ar.artId);
+
         if (compatible.length === 0) continue;
-        const chosen = compatible[Math.floor(Math.random() * compatible.length)];
-        eligible.push({ card, targetArtId: chosen.artId });
-      } else {
-        eligible.push({ card });
+        eligible.push({ card, compatibleArtIds: compatible });
+        continue;
       }
+
+      const stacks = this.acquiredCards.get(card.id) ?? 0;
+      if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
+      eligible.push({ card });
     }
 
     for (let i = eligible.length - 1; i > 0; i--) {
@@ -1095,10 +1283,10 @@ export class HollowWarEngine {
       [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
     }
 
-    return eligible.slice(0, count).map(({ card, targetArtId }) => this.buildDraftOption(card, targetArtId));
+    return eligible.slice(0, count).map(({ card, compatibleArtIds }) => this.buildDraftOption(card, compatibleArtIds));
   }
 
-  private buildDraftOption(card: UpgradeCardDef, targetArtId?: string): DraftOption {
+  private buildDraftOption(card: UpgradeCardDef, compatibleArtIds?: string[]): DraftOption {
     const beforeDps = this.getTotalEstimatedDps();
     const forked = this.sheet.fork();
 
@@ -1106,13 +1294,14 @@ export class HollowWarEngine {
     if (card.conversions) forked.setConversions(`preview_${card.id}`, card.conversions);
     if (card.extras) forked.setExtras(`preview_${card.id}`, card.extras);
 
+    const previewTargetId = compatibleArtIds?.[0];
     let afterDps = 0;
     for (const ar of this.arts) {
       const def = ARTS[ar.artId];
       const extraMods = [...this.getArtExtraMods(ar)];
       if (card.category === 'art' && card.artId === ar.artId) {
         extraMods.push({ stat: 'damage', kind: 'more', value: 0.22 });
-      } else if (card.category === 'inscription' && card.inscriptionId && targetArtId === ar.artId) {
+      } else if (card.category === 'inscription' && card.inscriptionId && previewTargetId === ar.artId) {
         const ins = INSCRIPTIONS[card.inscriptionId];
         if (ins) extraMods.push(...ins.mods);
       }
@@ -1125,21 +1314,25 @@ export class HollowWarEngine {
     }
 
     const dpsDeltaPct = beforeDps > 0 ? ((afterDps - beforeDps) / beforeDps) * 100 : 0;
-    const targetName = targetArtId ? ARTS[targetArtId]?.name : undefined;
-    const summaryText = targetName
-      ? `Inscribe onto ${targetName}`
-      : card.category === 'oath'
-        ? 'Keystone Oath'
-        : card.category.toUpperCase();
+    const summaryText =
+      card.category === 'inscription'
+        ? `Inscription (Choose Art)`
+        : card.category === 'oath'
+          ? 'Keystone Oath'
+          : card.category === 'art'
+            ? this.arts.some((a) => a.artId === card.artId)
+              ? 'Deepen Art'
+              : `New Art (${this.arts.length}/${MAX_ACTIVE_ARTS})`
+            : card.category.toUpperCase();
 
-    return { card, targetArtId, dpsDeltaPct, summaryText };
+    return { card, compatibleArtIds, dpsDeltaPct, summaryText };
   }
 
-  pickDraftOption(index: number): void {
+  pickDraftOption(index: number, chosenArtId?: string): void {
     const opt = this.draftOptions[index];
     if (!opt) return;
 
-    const { card, targetArtId } = opt;
+    const { card, compatibleArtIds } = opt;
     const stacks = (this.acquiredCards.get(card.id) ?? 0) + 1;
     this.acquiredCards.set(card.id, stacks);
 
@@ -1153,10 +1346,11 @@ export class HollowWarEngine {
 
     if (card.category === 'art' && card.artId) {
       this.addOrRankArt(card.artId);
-    } else if (card.category === 'inscription' && card.inscriptionId && targetArtId) {
-      const target = this.arts.find((a) => a.artId === targetArtId);
+    } else if (card.category === 'inscription' && card.inscriptionId) {
+      const targetId = chosenArtId && compatibleArtIds?.includes(chosenArtId) ? chosenArtId : compatibleArtIds?.[0];
+      const target = this.arts.find((a) => a.artId === targetId);
       const ins = INSCRIPTIONS[card.inscriptionId];
-      if (target && ins) {
+      if (target && ins && target.inscriptions.length < MAX_INSCRIPTIONS_PER_ART) {
         target.inscriptions.push(ins);
       }
     }

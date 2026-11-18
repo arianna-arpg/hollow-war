@@ -434,19 +434,29 @@ export function renderGame(
     ctx.restore();
   }
 
-  // Pickups
+  // Pickups (Mortal Essence, Lodestone Magnet, Life/Ward orbs)
   for (const pk of engine.pickups) {
     ctx.save();
     ctx.fillStyle = pk.color;
     ctx.shadowColor = pk.color;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = pk.kind === 'magnet' ? 16 : 10;
     ctx.beginPath();
-    if (pk.kind === 'xp') {
+    if (pk.kind === 'essence') {
       ctx.moveTo(pk.x, pk.y - pk.radius);
       ctx.lineTo(pk.x + pk.radius, pk.y);
       ctx.lineTo(pk.x, pk.y + pk.radius);
       ctx.lineTo(pk.x - pk.radius, pk.y);
       ctx.closePath();
+    } else if (pk.kind === 'magnet') {
+      ctx.arc(pk.x, pk.y, pk.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pk.x, pk.y, pk.radius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      continue;
     } else {
       ctx.arc(pk.x, pk.y, pk.radius, 0, Math.PI * 2);
     }

@@ -1,6 +1,7 @@
 import { ARTS } from '../content/skills.ts';
 import { VESSELS } from '../content/vessels.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
+import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
 
 export function renderModal(
   container: HTMLElement,
@@ -20,7 +21,12 @@ export function renderModal(
   if (engine.phase === 'vessel_select') {
     container.innerHTML = `
       <div class="modal-card">
-        <div class="modal-title">HOLLOW WAR</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="modal-title">HOLLOW WAR</div>
+          <button class="btn btn-primary" id="btn-open-archive">
+            Barrow Archive · ${engine.archive.shards} Shards
+          </button>
+        </div>
         <div class="modal-subtitle">
           Step onto the Ashen Warfront against the Demon and Undead hosts. Choose a Hollow Wake class to shape your Arts, Inscriptions, Doctrines, and Oaths.
           <span style="color:#f59e0b">WASD / Arrows to move · Space / Shift for Class Ultimate · Q to toggle Aim · Tab for Build Inspector</span>
@@ -57,6 +63,63 @@ export function renderModal(
         engine.startRun(id);
       });
     });
+    container.querySelector('#btn-open-archive')?.addEventListener('click', () => {
+      engine.setPhase('archive');
+    });
+    return;
+  }
+
+  if (engine.phase === 'archive') {
+    container.innerHTML = `
+      <div class="modal-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div>
+            <div class="modal-title">The Barrow Archive</div>
+            <div class="modal-subtitle" style="margin-bottom:0">
+              Spend Hollow Shards earned from fallen Vessels to shape future runs, unlock Banishes, Rerolls, and Build Affinity.
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font-size:14px;font-weight:800;color:#fbbf24">${engine.archive.shards} Hollow Shards</span>
+            <button class="btn" id="btn-archive-back">← Back</button>
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:16px">
+          ${ARCHIVE_NODES.map((node) => {
+            const rank = engine.archive.ranks[node.id] ?? 0;
+            const maxed = rank >= node.maxRank;
+            const cost = getNodeCost(node, rank);
+            const canAfford = !maxed && engine.archive.shards >= cost;
+            return `
+              <div class="choice-card" style="cursor:default">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#f59e0b">Rank ${rank} / ${node.maxRank}</span>
+                    <span style="font-size:11px;color:#94a3b8">${maxed ? 'MASTERED' : `${cost} Shards`}</span>
+                  </div>
+                  <div style="font-size:17px;font-weight:800;margin-bottom:8px">${node.name}</div>
+                  <div style="font-size:13px;color:#cbd5e1;line-height:1.45">${node.description}</div>
+                </div>
+                <button class="btn ${canAfford ? 'btn-primary' : ''}" data-buy-node="${node.id}" ${!canAfford ? 'disabled style="opacity:0.45;cursor:not-allowed;width:100%"' : 'style="width:100%"'}>
+                  ${maxed ? 'Mastered' : `Attune (${cost} Shards)`}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelector('#btn-archive-back')?.addEventListener('click', () => {
+      engine.setPhase('vessel_select');
+    });
+    container.querySelectorAll<HTMLElement>('[data-buy-node]').forEach((el) => {
+      el.addEventListener('click', () => {
+        if (buyArchiveNode(engine.archive, el.dataset.buyNode!)) {
+          engine.setPhase('archive');
+        }
+      });
+    });
     return;
   }
 
@@ -65,9 +128,12 @@ export function renderModal(
       <div class="modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <div class="modal-title">Level ${engine.player.level} — Forge Your Build</div>
-          <button class="btn" id="btn-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
-            Reroll (${engine.player.rerolls} left)
-          </button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:12px;color:#94a3b8">Banishes: <strong style="color:#f87171">${engine.player.banishes}</strong></span>
+            <button class="btn" id="btn-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+              Reroll (${engine.player.rerolls} left)
+            </button>
+          </div>
         </div>
         <div class="modal-subtitle">
           Choose an Art, Inscription, Doctrine, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
@@ -106,7 +172,10 @@ export function renderModal(
                   <div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                       <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#f59e0b">${summaryText}</span>
-                      <span style="font-size:10px;text-transform:uppercase;color:#94a3b8">${card.rarity}</span>
+                      <div style="display:flex;gap:6px;align-items:center">
+                        <span style="font-size:10px;text-transform:uppercase;color:#94a3b8">${card.rarity}</span>
+                        ${engine.player.banishes > 0 ? `<button class="btn" data-banish="${idx}" style="padding:2px 6px;font-size:10px;color:#fca5a5;border-color:rgba(239,68,68,0.45)">Banish</button>` : ''}
+                      </div>
                     </div>
                     <div style="font-size:17px;font-weight:800;margin-bottom:8px">${card.name}</div>
                     <div style="font-size:13px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>
@@ -134,6 +203,12 @@ export function renderModal(
         e.stopPropagation();
         const [idxStr, artId] = el.dataset.draftArt!.split(':');
         engine.pickDraftOption(Number(idxStr), artId);
+      });
+    });
+    container.querySelectorAll<HTMLElement>('[data-banish]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        engine.banishDraftOption(Number(el.dataset.banish));
       });
     });
     container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());
@@ -239,13 +314,22 @@ export function renderModal(
           <div class="stat-line"><span>Demons & Undead Slain</span><strong>${engine.kills}</strong></div>
           <div class="stat-line"><span>Total Damage Dealt</span><strong>${Math.round(engine.totalDamageDealt).toLocaleString()}</strong></div>
           <div class="stat-line"><span>Peak Estimated DPS</span><strong>${Math.round(engine.getTotalEstimatedDps())}</strong></div>
+          <div class="stat-line"><span>Hollow Shards Earned</span><strong style="color:#fbbf24">+${engine.lastRunShards} (${engine.archive.shards} total)</strong></div>
         </div>
-        <button class="btn btn-primary" id="btn-restart" style="width:100%;padding:12px;font-size:14px">
-          Choose Class & Re-enter
-        </button>
+        <div style="display:flex;gap:10px">
+          <button class="btn" id="btn-gameover-archive" style="flex:1;padding:12px;font-size:14px">
+            Barrow Archive
+          </button>
+          <button class="btn btn-primary" id="btn-restart" style="flex:1;padding:12px;font-size:14px">
+            Choose Class & Re-enter
+          </button>
+        </div>
       </div>
     `;
 
+    container.querySelector('#btn-gameover-archive')?.addEventListener('click', () => {
+      engine.setPhase('archive');
+    });
     container.querySelector('#btn-restart')?.addEventListener('click', () => {
       engine.setPhase('vessel_select');
     });

@@ -464,51 +464,52 @@ export function renderGame(
     ctx.restore();
   }
 
-  // Cinder Traps
+  // Traps (Cinder Trap & Frost Trap)
   for (const tr of engine.traps) {
     ctx.save();
     ctx.translate(tr.x, tr.y);
+    const isCold = tr.artId === 'frost_trap';
     const pulse = 0.75 + Math.sin(engine.elapsed * 8 + tr.id) * 0.25;
-    ctx.strokeStyle = `rgba(244, 63, 94, ${0.45 * pulse})`;
+    ctx.strokeStyle = isCold ? `rgba(34, 211, 238, ${0.48 * pulse})` : `rgba(244, 63, 94, ${0.45 * pulse})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, 0, tr.triggerRadius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#fb923c';
+    ctx.fillStyle = isCold ? '#67e8f9' : '#fb923c';
     ctx.beginPath();
     ctx.arc(0, 0, 5 * pulse, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  // Storm Totems
+  // Totems (Storm Totem & Searing Bond)
   for (const t of engine.totems) {
     ctx.save();
     ctx.translate(t.x, t.y);
+    const isFire = t.artId === 'searing_bond';
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.beginPath();
     ctx.ellipse(0, 4, 14, 9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#334155';
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = isFire ? '#ea580c' : '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, 0, 11, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = '#7dd3fc';
+    ctx.fillStyle = isFire ? '#fb923c' : '#7dd3fc';
     ctx.beginPath();
     ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  // Player Minions (Skeletal Vanguards & Flame Sprites)
+  // Player Minions (Skeletal Vanguards, Bone Golems & Flame Sprites)
   for (const m of engine.minions) {
     ctx.save();
     ctx.translate(m.x, m.y);
     if (m.kind === 'skeleton') {
-      // Binding ring
       ctx.strokeStyle = 'rgba(168, 85, 247, 0.45)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -519,6 +520,22 @@ export function renderGame(
       ctx.fillStyle = '#94a3b8';
       ctx.fillRect(2, 5, 11, 2.5);
       drawSkull(ctx, 5, 11, '#e7e5e4', '#a855f7');
+    } else if (m.kind === 'bone_golem') {
+      ctx.strokeStyle = 'rgba(214, 211, 209, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 21, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(m.facing);
+      ctx.fillStyle = '#a8a29e';
+      ctx.strokeStyle = '#1c1917';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawRibcage(ctx, 15, '#e7e5e4');
+      drawSkull(ctx, 8, 15, '#f5f5f4', '#fbbf24');
     } else {
       const bob = Math.sin(engine.elapsed * 7 + m.id) * 2.5;
       ctx.fillStyle = 'rgba(249, 115, 22, 0.35)';

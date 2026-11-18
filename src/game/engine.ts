@@ -3,9 +3,15 @@ import {
   INSCRIPTIONS,
   MAX_ACTIVE_ARTS,
   MAX_ART_RANK,
-  MAX_INSCRIPTIONS_PER_ART,
   type ArtDefinition,
 } from '../content/skills.ts';
+import {
+  calculateRunShards,
+  getArchiveBonuses,
+  loadArchive,
+  saveArchive,
+  type ArchiveState,
+} from '../meta/archive.ts';
 import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
 import { UPGRADE_POOL, type UpgradeCardDef } from '../content/upgrades.ts';
 import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
@@ -29,7 +35,7 @@ import type {
 } from './entities.ts';
 import { createEnemy, pickArchetypeForTime, resetEnemyIds } from './spawner.ts';
 
-export type GamePhase = 'vessel_select' | 'playing' | 'draft' | 'paused' | 'game_over';
+export type GamePhase = 'vessel_select' | 'archive' | 'playing' | 'draft' | 'paused' | 'game_over';
 
 export interface DraftOption {
   card: UpgradeCardDef;
@@ -86,7 +92,11 @@ export class HollowWarEngine {
     aimAngle: 0,
     orbitAngle: 0,
     rerolls: 2,
+    banishes: 0,
   };
+
+  archive: ArchiveState = loadArchive();
+  lastRunShards = 0;
 
   autoAim = true;
   elapsed = 0;
@@ -96,6 +106,7 @@ export class HollowWarEngine {
 
   arts: EquippedArt[] = [];
   acquiredCards: Map<string, number> = new Map();
+  banishedCards: Set<string> = new Set();
 
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
@@ -142,6 +153,10 @@ export class HollowWarEngine {
     this.procs = new ProcRuntime();
 
     this.sheet.setSource('vessel', found.mods);
+    const archiveBonuses = getArchiveBonuses(this.archive);
+    if (archiveBonuses.mods.length > 0) {
+      this.sheet.setSource('archive', archiveBonuses.mods);
+    }
     if (found.conversions) this.sheet.setConversions('vessel', found.conversions);
     if (found.extras) this.sheet.setExtras('vessel', found.extras);
     if (found.procs) {
@@ -150,6 +165,8 @@ export class HollowWarEngine {
 
     this.arts = [];
     this.acquiredCards.clear();
+    this.banishedCards.clear();
+    this.lastRunShards = 0;
     this.addOrRankArt(found.startingArtId);
 
     this.updateConditions(false);
@@ -177,7 +194,8 @@ export class HollowWarEngine {
       invulnTimer: 0,
       aimAngle: 0,
       orbitAngle: 0,
-      rerolls: 2,
+      rerolls: 2 + archiveBonuses.extraRerolls,
+      banishes: archiveBonuses.banishes,
     };
 
     resetEnemyIds();
@@ -396,7 +414,9 @@ export class HollowWarEngine {
             this.artId === 'frostbolt' ||
             this.artId === 'soul_rend' ||
             this.artId === 'raise_skeleton' ||
-            this.artId === 'flame_sprite'
+            this.artId === 'flame_sprite' ||
+            this.artId === 'void_orb' ||
+            this.artId === 'bone_golem'
           ) {
             mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
           } else if (
@@ -406,7 +426,9 @@ export class HollowWarEngine {
             this.artId === 'consecration' ||
             this.artId === 'poison_nova' ||
             this.artId === 'frost_nova' ||
-            this.artId === 'cinder_trap'
+            this.artId === 'cinder_trap' ||
+            this.artId === 'frost_trap' ||
+            this.artId === 'searing_bond'
           ) {
             mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
           }
@@ -534,7 +556,9 @@ export class HollowWarEngine {
   private castArt(art: EquippedArt, def: ArtDefinition, extraMods: Modifier[]): void {
     if (def.behavior === 'projectile') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
-      const pierce = Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+      const pierce =
+        (def.id === 'void_orb' ? 3 : 0) +
+        Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
       const areaScale = this.sheet.get('area', def.tags, extraMods);
       const speed = def.projectileSpeed ?? 520;
       const spreadStep = count > 1 ? 0.14 : 0;
@@ -637,7 +661,12 @@ export class HollowWarEngine {
       def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
     const current = this.minions.filter((m) => m.artId === art.artId);
     if (current.length < desired) {
-      const kind = art.artId === 'flame_sprite' ? 'flame_sprite' : 'skeleton';
+      const kind =
+        art.artId === 'flame_sprite'
+          ? 'flame_sprite'
+          : art.artId === 'bone_golem'
+            ? 'bone_golem'
+            : 'skeleton';
       for (let i = current.length; i < desired; i++) {
         const a = (i / Math.max(1, desired)) * Math.PI * 2;
         this.minions.push({
@@ -674,18 +703,30 @@ export class HollowWarEngine {
         }
       }
 
-      if (m.kind === 'skeleton') {
+      if (m.kind === 'skeleton' || m.kind === 'bone_golem') {
         if (nearest) {
           const dx = nearest.x - m.x;
           const dy = nearest.y - m.y;
           m.facing = Math.atan2(dy, dx);
-          if (bestDist > nearest.radius + 18) {
-            m.x += (dx / bestDist) * 195 * dt;
-            m.y += (dy / bestDist) * 195 * dt;
+          const moveSpd = m.kind === 'bone_golem' ? 165 : 195;
+          const reach = m.kind === 'bone_golem' ? 28 : 18;
+          if (bestDist > nearest.radius + reach) {
+            m.x += (dx / bestDist) * moveSpd * dt;
+            m.y += (dy / bestDist) * moveSpd * dt;
           } else if (m.attackTimer <= 0) {
             const spd = Math.max(0.2, this.sheet.get('attackSpeed', def.tags, extraMods));
             m.attackTimer = def.baseCooldown / spd;
-            this.applyArtHit(nearest, def, extraMods, art);
+            if (m.kind === 'bone_golem') {
+              const slamR = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+              this.novas.push({ x: nearest.x, y: nearest.y, radius: 8, maxRadius: slamR, color: '#d6d3d1', life: 0.24, maxLife: 0.24 });
+              for (const e of this.enemies) {
+                if (e.life > 0 && Math.hypot(e.x - nearest.x, e.y - nearest.y) <= slamR + e.radius) {
+                  this.applyArtHit(e, def, extraMods, art);
+                }
+              }
+            } else {
+              this.applyArtHit(nearest, def, extraMods, art);
+            }
           }
         } else {
           // Patrol around player
@@ -749,8 +790,17 @@ export class HollowWarEngine {
         const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
         t.fireTimer = 0.88 / spd;
         const range = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
-        const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
-        this.castChainLightning(t.x, t.y, range, chains, def, extraMods, art);
+        if (def.id === 'searing_bond') {
+          this.novas.push({ x: t.x, y: t.y, radius: 10, maxRadius: range, color: '#ea580c', life: 0.26, maxLife: 0.26 });
+          for (const e of this.enemies) {
+            if (e.life > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= range + e.radius) {
+              this.applyArtHit(e, def, extraMods, art);
+            }
+          }
+        } else {
+          const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
+          this.castChainLightning(t.x, t.y, range, chains, def, extraMods, art);
+        }
       }
     }
   }
@@ -1271,6 +1321,11 @@ export class HollowWarEngine {
 
     if (this.player.life <= 0) {
       this.player.life = 0;
+      const earned = calculateRunShards(this.elapsed, this.kills, this.player.level);
+      this.lastRunShards = earned;
+      this.archive.shards += earned;
+      this.archive.totalRuns += 1;
+      saveArchive(this.archive);
       this.setPhase('game_over');
     }
   }
@@ -1449,10 +1504,50 @@ export class HollowWarEngine {
     this.onPhaseChange?.(this.phase);
   }
 
-  private rollDraftOptions(count: number): DraftOption[] {
-    const eligible: Array<{ card: UpgradeCardDef; compatibleArtIds?: string[] }> = [];
+  banishDraftOption(index: number): void {
+    if (this.player.banishes <= 0 || this.phase !== 'draft') return;
+    const opt = this.draftOptions[index];
+    if (!opt) return;
+    this.player.banishes -= 1;
+    this.banishedCards.add(opt.card.id);
+
+    const existingIds = new Set(this.draftOptions.map((o) => o.card.id));
+    const replacement = this.rollDraftOptions(1, existingIds);
+    if (replacement.length > 0) {
+      this.draftOptions[index] = replacement[0];
+    } else {
+      this.draftOptions.splice(index, 1);
+    }
+    this.onPhaseChange?.(this.phase);
+  }
+
+  private getActiveTagSet(): Set<string> {
+    const tags = new Set<string>();
+    for (const ar of this.arts) {
+      const def = ARTS[ar.artId];
+      if (def) {
+        for (const t of def.tags) tags.add(t);
+      }
+    }
+    return tags;
+  }
+
+  private rollDraftOptions(count: number, excludeIds: Set<string> = new Set()): DraftOption[] {
+    const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
+    const affinityBoost = 1.2 + getArchiveBonuses(this.archive).affinityLevel * 1.4;
+    const activeTags = this.getActiveTagSet();
+
+    interface WeightedCandidate {
+      card: UpgradeCardDef;
+      compatibleArtIds?: string[];
+      weight: number;
+    }
+
+    const eligible: WeightedCandidate[] = [];
 
     for (const card of UPGRADE_POOL) {
+      if (this.banishedCards.has(card.id) || excludeIds.has(card.id)) continue;
+
       if (card.category === 'art' && card.artId) {
         const active = this.arts.find((a) => a.artId === card.artId);
         if (active) {
@@ -1460,7 +1555,9 @@ export class HollowWarEngine {
         } else {
           if (this.arts.length >= MAX_ACTIVE_ARTS) continue;
         }
-        eligible.push({ card });
+        const shared = card.tags.filter((t) => activeTags.has(t)).length;
+        const rankBonus = active ? 1.5 : 1.0;
+        eligible.push({ card, weight: rankBonus * (1 + shared * affinityBoost) });
         continue;
       }
 
@@ -1471,7 +1568,7 @@ export class HollowWarEngine {
           .filter((ar) => {
             const def = ARTS[ar.artId];
             if (!def) return false;
-            if (ar.inscriptions.length >= MAX_INSCRIPTIONS_PER_ART) return false;
+            if (ar.inscriptions.length >= maxIns) return false;
             if (ar.inscriptions.some((i) => i.id === ins.id)) return false;
             if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
             return true;
@@ -1479,21 +1576,48 @@ export class HollowWarEngine {
           .map((ar) => ar.artId);
 
         if (compatible.length === 0) continue;
-        eligible.push({ card, compatibleArtIds: compatible });
+        const shared = card.tags.filter((t) => activeTags.has(t)).length;
+        eligible.push({ card, compatibleArtIds: compatible, weight: 1 + shared * affinityBoost });
         continue;
       }
 
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
-      eligible.push({ card });
+      const shared = card.tags.filter((t) => activeTags.has(t)).length;
+      eligible.push({ card, weight: 1 + shared * affinityBoost });
     }
 
-    for (let i = eligible.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+    // Weighted sampling without replacement, capping Inscriptions to at most 1 per 3-card draft
+    // (unless non-inscription candidates run out) so drafts never feel flooded.
+    const picked: WeightedCandidate[] = [];
+    const pool = [...eligible];
+    let inscriptionCount = 0;
+
+    while (picked.length < count && pool.length > 0) {
+      const nonInsLeft = pool.some((c) => c.card.category !== 'inscription');
+      const filtered =
+        inscriptionCount >= 1 && nonInsLeft
+          ? pool.filter((c) => c.card.category !== 'inscription')
+          : pool;
+
+      const totalW = filtered.reduce((s, c) => s + c.weight, 0);
+      let r = Math.random() * totalW;
+      let chosen = filtered[0];
+      for (const c of filtered) {
+        r -= c.weight;
+        if (r <= 0) {
+          chosen = c;
+          break;
+        }
+      }
+
+      picked.push(chosen);
+      if (chosen.card.category === 'inscription') inscriptionCount++;
+      const idx = pool.indexOf(chosen);
+      if (idx >= 0) pool.splice(idx, 1);
     }
 
-    return eligible.slice(0, count).map(({ card, compatibleArtIds }) => this.buildDraftOption(card, compatibleArtIds));
+    return picked.map(({ card, compatibleArtIds }) => this.buildDraftOption(card, compatibleArtIds));
   }
 
   private buildDraftOption(card: UpgradeCardDef, compatibleArtIds?: string[]): DraftOption {
@@ -1577,7 +1701,8 @@ export class HollowWarEngine {
       const targetId = chosenArtId && compatibleArtIds?.includes(chosenArtId) ? chosenArtId : compatibleArtIds?.[0];
       const target = this.arts.find((a) => a.artId === targetId);
       const ins = INSCRIPTIONS[card.inscriptionId];
-      if (target && ins && target.inscriptions.length < MAX_INSCRIPTIONS_PER_ART) {
+      const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
+      if (target && ins && target.inscriptions.length < maxIns) {
         target.inscriptions.push(ins);
       }
     }

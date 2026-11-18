@@ -137,7 +137,7 @@ export interface Particle {
 export interface MinionEntity {
   id: number;
   artId: string;
-  kind: 'skeleton' | 'flame_sprite';
+  kind: 'skeleton' | 'flame_sprite' | 'bone_golem';
   x: number;
   y: number;
   facing: number;

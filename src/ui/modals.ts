@@ -206,7 +206,15 @@ export function renderModal(
     const targetArt = engine.arts.find((a) => a.artId === engine.inscribeChoice!.artId);
     container.innerHTML = `
       <div class="modal-card">
-        <div class="modal-title" style="color:${targetDef.color}">Inscribe ${targetDef.name}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="modal-title" style="color:${targetDef.color}">Inscribe ${targetDef.name}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btn-inscribe-back">← Back to Draft</button>
+            <button class="btn" id="btn-inscribe-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+              Reroll (${engine.player.rerolls} left)
+            </button>
+          </div>
+        </div>
         <div class="modal-subtitle">
           Choose one compatible Inscription to embed into ${targetDef.name} (Rank ${targetArt?.level ?? 1}).
           ${targetArt?.inscriptions.length ? `Currently etched: ${targetArt.inscriptions.map((i) => i.shortName).join(', ')}` : ''}
@@ -242,6 +250,8 @@ export function renderModal(
         engine.pickInscription(el.dataset.inscribe!);
       });
     });
+    container.querySelector('#btn-inscribe-back')?.addEventListener('click', () => engine.backFromInscribe());
+    container.querySelector('#btn-inscribe-reroll')?.addEventListener('click', () => engine.rerollInscribe());
     return;
   }
 

@@ -2,7 +2,7 @@ import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec, SkillTag } fr
 import { MAX_ART_RANK } from './skills.ts';
 
 export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'oath';
-export type UpgradeCategory = 'art' | 'inscription' | 'passive' | 'oath';
+export type UpgradeCategory = 'art' | 'inscription' | 'passive' | 'oath' | 'shards';
 
 export interface UpgradeCardDef {
   id: string;

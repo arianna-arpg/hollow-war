@@ -207,4 +207,42 @@ describe('Hollow War Combat SDK', () => {
     expect(engine.pendingEchoes.length).toBe(0);
     expect(engine.projectiles.length).toBeGreaterThan(beforeEchoCount);
   });
+
+  it('filters irrelevant elemental Inscriptions and supports Inscribe Back + Reroll bad-luck protection', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('pyromancer'); // starts with Fireball (pure Fire)
+    engine.openDraft();
+
+    // Force an Inscribe choice for Fireball
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'inscribe_fireball',
+          name: 'Inscribe: Fireball',
+          category: 'inscription',
+          rarity: 'rare',
+          artId: 'fireball',
+          description: 'Test',
+          tags: ['spell', 'projectile', 'aoe', 'fire'],
+        },
+        summaryText: 'Etch Inscription',
+      },
+    ];
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('inscribe');
+
+    const offeredIds = new Set(engine.inscribeChoice!.options.map((o) => o.ins.id));
+    expect(offeredIds.has('hoarfrost_bind')).toBe(false);
+    expect(offeredIds.has('voltaic_arc')).toBe(false);
+
+    // Reroll in Inscribe should avoid repeating the exact same set
+    engine.rerollInscribe();
+    const rerolledIds = new Set(engine.inscribeChoice!.options.map((o) => o.ins.id));
+    const allSame = [...offeredIds].every((id) => rerolledIds.has(id));
+    expect(allSame).toBe(false);
+
+    // Back button returns cleanly to draft
+    engine.backFromInscribe();
+    expect(engine.phase).toBe('draft');
+  });
 });

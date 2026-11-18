@@ -204,6 +204,18 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       drawSkull(ctx, r * 0.42, r, '#e7e5e4', '#fb923c');
       break;
     }
+    case 'void_acolyte': {
+      // Late-game lead-targeting Umbral Acolyte: violet cowl + rune halo + skull
+      ctx.fillStyle = flash ? '#ffffff' : '#3b0764';
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.84, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawSkull(ctx, r * 0.35, r, '#e9d5ff', '#f43f5e');
+      break;
+    }
     case 'blade_wraith': {
       // Spectral shroud + paired curved daggers + cyan eyes
       ctx.fillStyle = flash ? '#ffffff' : 'rgba(56, 189, 248, 0.35)';

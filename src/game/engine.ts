@@ -18,7 +18,7 @@ import {
 import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
 import { UPGRADE_POOL, type UpgradeCardDef } from '../content/upgrades.ts';
 import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
-import { previewSkillDps, resolveHit, type SkillDamageSpec } from '../sdk/combat-resolver.ts';
+import { computeOutgoingByType, previewSkillDps, resolveHit, type SkillDamageSpec } from '../sdk/combat-resolver.ts';
 import { ProcRuntime, type ProcEventContext } from '../sdk/proc-runtime.ts';
 import { StatSheet } from '../sdk/stat-sheet.ts';
 import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview } from '../sdk/types.ts';
@@ -1572,6 +1572,7 @@ export class HollowWarEngine {
         e.archetype === 'skeleton_mage' ||
         e.archetype === 'barrow_watchman' ||
         e.archetype === 'skeletal_mortarman' ||
+        e.archetype === 'void_acolyte' ||
         e.archetype === 'abyssal_foldwright' ||
         e.archetype === 'ash_whelp';
 
@@ -1593,14 +1594,15 @@ export class HollowWarEngine {
             ? this.elapsed > 480
               ? 1.7
               : 2.3
-            : e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright'
+            : e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
               ? 2.0
-              : 2.5;
+              : 2.4;
 
-          // Skeletal Mortarmen & Bosses lob telegraphed Mortar Hazard Zones ahead of the player's movement path
+          // Skeletal Mortarmen lob non-leading ground zones at your current position; Bosses lead ahead of your path
           if (e.archetype === 'skeletal_mortarman' || (e.isBoss && Math.random() < 0.45)) {
-            const leadX = this.player.x + this.player.vx * 0.85 + (Math.random() - 0.5) * 40;
-            const leadY = this.player.y + this.player.vy * 0.85 + (Math.random() - 0.5) * 40;
+            const leadFactor = e.isBoss ? 0.85 : 0;
+            const leadX = this.player.x + this.player.vx * leadFactor + (Math.random() - 0.5) * 32;
+            const leadY = this.player.y + this.player.vy * leadFactor + (Math.random() - 0.5) * 32;
             this.enemyHazards.push({
               id: nextEntityId++,
               x: leadX,
@@ -1613,8 +1615,8 @@ export class HollowWarEngine {
           }
 
           const projSpeed = e.archetype === 'skeletal_mortarman' ? 195 : e.isBoss ? 255 : 245;
-          // Lead-targeting for Skeleton Mages & Abyssal Foldwrights to punish predictable circle-strafing
-          const usesLead = e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright';
+          // Only late-game Void Acolytes (7:30+) & Abyssal Foldwrights use lead-targeting; Skeleton Mages fire direct spreads
+          const usesLead = e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright';
           const travelT = usesLead ? Math.min(1.2, dist / projSpeed) : 0;
           const aimX = this.player.x + this.player.vx * travelT;
           const aimY = this.player.y + this.player.vy * travelT;
@@ -1628,7 +1630,7 @@ export class HollowWarEngine {
                 : 5
             : e.archetype === 'skeletal_mortarman'
               ? 4
-              : e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright'
+              : e.archetype === 'skeleton_mage' || e.archetype === 'void_acolyte' || e.archetype === 'abyssal_foldwright'
                 ? 3
                 : e.archetype === 'barrow_watchman'
                   ? 2
@@ -2067,8 +2069,28 @@ export class HollowWarEngine {
   rerollDraft(): void {
     if (this.player.rerolls <= 0 || this.phase !== 'draft') return;
     this.player.rerolls -= 1;
-    this.draftOptions = this.rollDraftOptions(3);
+    const prevIds = new Set(this.draftOptions.map((o) => o.card.id));
+    let next = this.rollDraftOptions(3, prevIds);
+    // Bad-luck protection: only fall back to allowing previous IDs if fewer than 3 alternatives exist
+    if (next.length < 3) {
+      const fill = this.rollDraftOptions(3 - next.length, new Set(next.map((o) => o.card.id)));
+      next = [...next, ...fill];
+    }
+    this.draftOptions = next;
     this.onPhaseChange?.(this.phase);
+  }
+
+  backFromInscribe(): void {
+    if (this.phase !== 'inscribe') return;
+    this.inscribeChoice = null;
+    this.setPhase('draft');
+  }
+
+  rerollInscribe(): void {
+    if (this.player.rerolls <= 0 || this.phase !== 'inscribe' || !this.inscribeChoice) return;
+    this.player.rerolls -= 1;
+    const prevInsIds = new Set(this.inscribeChoice.options.map((o) => o.ins.id));
+    this.openInscribeForArt(this.inscribeChoice.artId, prevInsIds);
   }
 
   banishDraftOption(index: number): void {
@@ -2102,9 +2124,18 @@ export class HollowWarEngine {
   private getCompatibleInscriptions(art: EquippedArt): InscriptionDef[] {
     const def = ARTS[art.artId];
     if (!def) return [];
+    const extraMods = this.getArtExtraMods(art);
+    const extraConvs = art.inscriptions.flatMap((i) => i.conversions ?? []);
+    const extraExtras = art.inscriptions.flatMap((i) => i.extras ?? []);
+    const outgoing = computeOutgoingByType(this.sheet, def, extraMods, extraConvs, extraExtras);
+
     return Object.values(INSCRIPTIONS).filter((ins) => {
       if (art.inscriptions.some((i) => i.id === ins.id)) return false;
       if (ins.requiredTags && !ins.requiredTags.every((t) => def.tags.includes(t))) return false;
+      if (ins.relevantElements && ins.relevantElements.length > 0) {
+        const hasRelevant = ins.relevantElements.some((dt) => outgoing[dt] > 0.1 || def.tags.includes(dt));
+        if (!hasRelevant) return false;
+      }
       return true;
     });
   }
@@ -2194,6 +2225,22 @@ export class HollowWarEngine {
       if (idx >= 0) pool.splice(idx, 1);
     }
 
+    if (picked.length === 0 && excludeIds.size === 0) {
+      return [
+        {
+          card: {
+            id: 'fallback_shards',
+            name: 'Claim Barrow Shards',
+            category: 'shards',
+            rarity: 'mythic',
+            description: 'All upgrades in this run’s pool are mastered. Claim +25 Hollow Shards for The Barrow Archive.',
+            tags: [],
+          },
+          summaryText: 'Barrow Archive',
+        },
+      ];
+    }
+
     return picked.map(({ card }) => this.buildDraftOption(card));
   }
 
@@ -2257,6 +2304,13 @@ export class HollowWarEngine {
     if (!opt) return;
 
     const { card } = opt;
+    if (card.category === 'shards') {
+      this.archive.shards += 25;
+      saveArchive(this.archive);
+      this.setPhase('playing');
+      return;
+    }
+
     if (card.category === 'inscription' && card.artId) {
       this.openInscribeForArt(card.artId);
       return;
@@ -2283,19 +2337,29 @@ export class HollowWarEngine {
     this.setPhase('playing');
   }
 
-  private openInscribeForArt(artId: string): void {
+  private openInscribeForArt(artId: string, excludeIds: Set<string> = new Set()): void {
     const art = this.arts.find((a) => a.artId === artId);
     if (!art) {
       this.setPhase('playing');
       return;
     }
     const def = ARTS[art.artId];
-    const compatible = this.getCompatibleInscriptions(art);
-    for (let i = compatible.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [compatible[i], compatible[j]] = [compatible[j], compatible[i]];
+    const allCompatible = this.getCompatibleInscriptions(art);
+    let pool = allCompatible.filter((i) => !excludeIds.has(i.id));
+    if (pool.length < Math.min(4, allCompatible.length)) {
+      const rest = allCompatible.filter((i) => !pool.includes(i));
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      pool = [...pool, ...rest];
+    } else {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
     }
-    const chosen = compatible.slice(0, 4);
+    const chosen = pool.slice(0, 4);
     const beforeArtDps = this.getArtPreview(art).estimatedDps;
 
     const options = chosen.map((ins) => {

@@ -26,6 +26,7 @@ export type EnemyArchetype =
   | 'skeleton_mage'
   | 'barrow_watchman'
   | 'skeletal_mortarman'
+  | 'void_acolyte'
   | 'wraith'
   | 'blade_wraith'
   | 'gravemaw'

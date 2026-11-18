@@ -44,6 +44,8 @@ export interface InscriptionDef {
   description: string;
   color: string;
   requiredTags?: readonly SkillTag[];
+  /** If set, the Art must currently deal > 0 of at least one of these DamageTypes (including conversions/extras). */
+  relevantElements?: readonly ('physical' | 'fire' | 'cold' | 'lightning' | 'chaos')[];
   mods: Modifier[];
   conversions?: ConversionRule[];
   extras?: ExtraDamageRule[];
@@ -485,6 +487,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Combustion',
     description: 'Binds hungry cinder to the Art: +45% Ignite Chance, +25% More Fire Damage, +10% Fire Penetration, but -25% Critical Strike Multiplier.',
     color: '#f97316',
+    relevantElements: ['fire'],
     mods: [
       { stat: 'igniteChance', kind: 'flat', value: 0.45 },
       { stat: 'fireDamage', kind: 'more', value: 0.25 },
@@ -631,6 +634,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Hoarfrost',
     description: 'Steeps the Art in winter: +40% Chill Chance, +25% More Cold Damage, +10% Cold Pen, but 15% Less Fire Damage.',
     color: '#67e8f9',
+    relevantElements: ['cold'],
     mods: [
       { stat: 'chillChance', kind: 'flat', value: 0.4 },
       { stat: 'coldDamage', kind: 'more', value: 0.25 },
@@ -644,6 +648,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Elem. Ruin',
     description: 'Carves away warded resistances: +18% Fire, Cold & Lightning Penetration, but 15% Less Physical & Chaos Damage.',
     color: '#fbbf24',
+    relevantElements: ['fire', 'cold', 'lightning'],
     mods: [
       { stat: 'firePen', kind: 'flat', value: 0.18 },
       { stat: 'coldPen', kind: 'flat', value: 0.18 },
@@ -682,6 +687,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Voltaic',
     description: 'Overcharges the strike with storm-fire: +40% Shock Chance and +25% More Lightning Damage, but 15% Less Fire & Cold Damage.',
     color: '#fde047',
+    relevantElements: ['lightning'],
     mods: [
       { stat: 'shockChance', kind: 'flat', value: 0.4 },
       { stat: 'lightningDamage', kind: 'more', value: 0.25 },
@@ -695,6 +701,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Venomous',
     description: 'Steeps the Art in blight: +40% Poison Chance and +35% More Ailment/DoT Damage, but 15% Less Direct Hit Damage.',
     color: '#66c83c',
+    relevantElements: ['chaos'],
     mods: [
       { stat: 'poisonChance', kind: 'flat', value: 0.4 },
       { stat: 'dotDamage', kind: 'more', value: 0.35 },
@@ -707,6 +714,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Laceration',
     description: 'Serrates the impact: +45% Bleed Chance and +25% More Physical Damage, but -18% Area of Effect.',
     color: '#ef4444',
+    relevantElements: ['physical'],
     mods: [
       { stat: 'bleedChance', kind: 'flat', value: 0.45 },
       { stat: 'physicalDamage', kind: 'more', value: 0.25 },
@@ -732,6 +740,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Furnace Brand',
     description: 'Converts 50% of Physical & Cold Damage to Fire and grants +15% Fire Pen, at the cost of 15% Less Cold Damage.',
     color: '#f97316',
+    relevantElements: ['physical', 'cold'],
     conversions: [
       { from: 'physical', to: 'fire', ratio: 0.5 },
       { from: 'cold', to: 'fire', ratio: 0.5 },
@@ -747,6 +756,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     shortName: 'Abyssal Brand',
     description: 'Converts 50% of Physical & Lightning Damage to Chaos and grants +15% Chaos Pen, but -25% Critical Strike Multiplier.',
     color: '#a855f7',
+    relevantElements: ['physical', 'lightning'],
     conversions: [
       { from: 'physical', to: 'chaos', ratio: 0.5 },
       { from: 'lightning', to: 'chaos', ratio: 0.5 },
@@ -928,6 +938,58 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     requiredTags: ['projectile'],
     splitOnHit: 2,
     mods: [{ stat: 'damage', kind: 'more', value: -0.22, tags: ['projectile'] }],
+  },
+  overwhelming_force: {
+    id: 'overwhelming_force',
+    name: 'Inscription of Overwhelming Force',
+    shortName: 'Overwhelming',
+    description: 'Swamps the arena in raw impact: +28% More Area Damage and +15% Area of Effect, but 15% Less Attack & Cast Speed.',
+    color: '#f59e0b',
+    requiredTags: ['aoe'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.28, tags: ['aoe'] },
+      { stat: 'area', kind: 'inc', value: 0.15 },
+      { stat: 'attackSpeed', kind: 'more', value: -0.15 },
+      { stat: 'castSpeed', kind: 'more', value: -0.15 },
+    ],
+  },
+  brutal_momentum: {
+    id: 'brutal_momentum',
+    name: 'Inscription of Brutal Momentum',
+    shortName: 'Brutal',
+    description: 'Drives heavy strikes through armor: +30% More Attack Damage and +15% Armor Pen, but -10% Critical Strike Chance.',
+    color: '#d8b06a',
+    requiredTags: ['attack'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.3, tags: ['attack'] },
+      { stat: 'armorPen', kind: 'flat', value: 0.15 },
+      { stat: 'critChance', kind: 'flat', value: -0.1 },
+    ],
+  },
+  arcane_potency: {
+    id: 'arcane_potency',
+    name: 'Inscription of Arcane Potency',
+    shortName: 'Arcane Potency',
+    description: 'Sharpens spellcraft: +28% More Spell Damage and +10% Crit Chance, but -15% Area of Effect.',
+    color: '#7a9aff',
+    requiredTags: ['spell'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.28, tags: ['spell'] },
+      { stat: 'critChance', kind: 'flat', value: 0.1 },
+      { stat: 'area', kind: 'inc', value: -0.15 },
+    ],
+  },
+  relentless_haste: {
+    id: 'relentless_haste',
+    name: 'Inscription of Relentless Haste',
+    shortName: 'Haste',
+    description: 'Accelerates every motion: +28% More Attack & Cast Speed, at the cost of 14% Less Art Damage.',
+    color: '#34d399',
+    mods: [
+      { stat: 'attackSpeed', kind: 'more', value: 0.28 },
+      { stat: 'castSpeed', kind: 'more', value: 0.28 },
+      { stat: 'damage', kind: 'more', value: -0.14 },
+    ],
   },
 };
 

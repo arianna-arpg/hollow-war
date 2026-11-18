@@ -277,6 +277,32 @@ export function createEnemy(
         abilityTimer: 2.4,
         orbitHitCooldown: 0,
       };
+    case 'void_acolyte':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Umbral Acolyte',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 15,
+        life: 76 * hpScale,
+        maxLife: 76 * hpScale,
+        speed: 86,
+        damage: 19 * (1 + elapsedSeconds / 115),
+        xpValue: 36,
+        armor: 10,
+        resistances: { chaos: 0.35, cold: 0.25 },
+        color: '#a855f7',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.0,
+        orbitHitCooldown: 0,
+      };
     case 'blade_wraith':
       return {
         id: nextEnemyId++,
@@ -532,7 +558,8 @@ export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyA
     return 'barrow_watchman';
   }
   if (elapsed < 540) {
-    // 6:30+ Skeletal Mortarmen & Blade Wraiths
+    // 6:30+ Skeletal Mortarmen & Blade Wraiths; 7:30+ Umbral Acolytes
+    if (elapsed >= 450 && r < 0.14) return 'void_acolyte';
     if (r < 0.15) return 'revenant_knight';
     if (r < 0.3) return 'gravemaw';
     if (r < 0.46) return 'blade_wraith';
@@ -542,10 +569,11 @@ export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyA
     return 'skeleton_archer';
   }
   // 9:00+ Bullet-hell escalation
-  if (r < 0.24) return 'skeleton_mage';
-  if (r < 0.44) return 'skeletal_mortarman';
-  if (r < 0.6) return 'barrow_watchman';
-  if (r < 0.76) return 'blade_wraith';
-  if (r < 0.9) return 'revenant_knight';
+  if (r < 0.18) return 'void_acolyte';
+  if (r < 0.36) return 'skeleton_mage';
+  if (r < 0.54) return 'skeletal_mortarman';
+  if (r < 0.68) return 'barrow_watchman';
+  if (r < 0.82) return 'blade_wraith';
+  if (r < 0.92) return 'revenant_knight';
   return 'gravemaw';
 }

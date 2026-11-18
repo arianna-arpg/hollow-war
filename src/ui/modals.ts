@@ -175,7 +175,16 @@ export function renderModal(
                       </div>
                     </div>
                     <div style="font-size:17px;font-weight:800;margin-bottom:8px">${card.name}</div>
-                    <div style="font-size:13px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>
+                    ${
+                      card.category === 'art' && card.artId && ARTS[card.artId]
+                        ? `<div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:6px">${ARTS[card.artId].description}</div>
+                           <div style="font-size:11px;color:#fbbf24;margin-bottom:10px">${
+                             engine.arts.some((a) => a.artId === card.artId)
+                               ? `Rank ${engine.arts.find((a) => a.artId === card.artId)!.level} → ${engine.arts.find((a) => a.artId === card.artId)!.level + 1} (+22% More Art Damage)`
+                               : 'Learn new active Art'
+                           }</div>`
+                        : `<div style="font-size:13px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>`
+                    }
                     ${card.tradeoff ? `<div class="tradeoff-box" style="margin-bottom:10px">Burden: ${card.tradeoff}</div>` : ''}
                     <div class="tag-row">
                       ${card.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}

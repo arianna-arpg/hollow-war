@@ -24,15 +24,15 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Arcane Elementalist',
     lookId: 'class_magician',
     description:
-      'A disciplined scholar of the three storms—fire, frost, and lightning—who opens with rapid Firebolts and calls down elemental convergence.',
+      'A disciplined scholar of the three storms—fire, frost, and lightning—who opens with Firebolt and calls down the Stormcrown.',
     color: '#7a9aff',
     glowColor: 'rgba(122, 154, 255, 0.45)',
     startingArtId: 'firebolt',
     ultimate: {
-      id: 'tempest_convergence',
-      name: 'Tempest Convergence',
-      cooldown: 11,
-      description: 'Unleash a ring of hoarfrost and 8 seeking arcane bolts across the warfront.',
+      id: 'stormcrown',
+      name: 'Stormcrown',
+      cooldown: 12,
+      description: 'Calls down a tempest of 12 lightning strikes across nearby foes, dealing heavy Lightning damage and Shocking them.',
     },
   },
   {
@@ -49,7 +49,7 @@ export const VESSELS: VesselDefinition[] = [
       id: 'red_hour',
       name: 'Red Hour',
       cooldown: 12,
-      description: 'Erupt in an iron shockwave and enter 4s of Bloodlust (+45% Attack Speed, +25% Move Speed, +15% Life Leech).',
+      description: 'Erupt in an iron shockwave and enter 4s of Red Hour (+45% Attack Speed, +25% Move Speed, +15% Life Leech).',
     },
   },
   {
@@ -58,15 +58,15 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Shadow Striker',
     lookId: 'class_rogue',
     description:
-      'An elusive killer who slips behind the mark with crescents of tempered daggers and vanishes in a Shadow Step.',
+      'An elusive killer who slips behind the mark with Fan of Blades and severs time with The Hundred Partings.',
     color: '#8fa189',
     glowColor: 'rgba(143, 161, 137, 0.45)',
     startingArtId: 'fan_of_blades',
     ultimate: {
-      id: 'shadow_step',
-      name: 'Shadow Step',
-      cooldown: 9,
-      description: 'Blink swiftly with brief invulnerability, leaving a 7-blade fan of lethal daggers in your wake.',
+      id: 'hundred_partings',
+      name: 'The Hundred Partings',
+      cooldown: 11,
+      description: 'Briefly stills nearby foes in time while unleashing a 9-blade crescent of piercing shadow daggers.',
     },
   },
   {
@@ -75,15 +75,15 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Marrow Sovereign',
     lookId: 'class_necromancer',
     description:
-      'A pale student of the Barrow who turns rot and grave-miasma into a rising tide of ruin.',
+      'A pale student of the Barrow who turns rot and grave-miasma into a rising tide of the unburied.',
     color: '#a855f7',
     glowColor: 'rgba(168, 85, 247, 0.45)',
     startingArtId: 'poison_nova',
     ultimate: {
-      id: 'grave_reckoning',
-      name: 'Grave Reckoning',
-      cooldown: 12,
-      description: 'Detonate a massive ring of blight that inflicts heavy Poison and drains Life from every foe struck.',
+      id: 'grave_tide',
+      name: 'Grave Tide',
+      cooldown: 13,
+      description: 'Calls forth a surge of 6 Risen Skeletons around you for 10 seconds to swarm and tear apart the warfront.',
     },
   },
   {
@@ -92,7 +92,7 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Ashbound Herald',
     lookId: 'class_pyromancer',
     description:
-      'Carries the furnace in their ribs, hurling explosive Fireballs and calling down Pillars of Flame.',
+      'Carries the furnace in their ribs, hurling explosive Fireballs and raising a searing Pillar of Flame.',
     color: '#f97316',
     glowColor: 'rgba(249, 115, 22, 0.45)',
     startingArtId: 'fireball',
@@ -100,7 +100,7 @@ export const VESSELS: VesselDefinition[] = [
       id: 'pillar_of_flame',
       name: 'Pillar of Flame',
       cooldown: 11,
-      description: 'Call down a colossal inferno around your vessel, scorching and igniting every foe in range.',
+      description: 'Raises a burning ring around your vessel that sears and ignites every foe caught within.',
     },
   },
   {
@@ -109,15 +109,15 @@ export const VESSELS: VesselDefinition[] = [
     title: 'Aegis Sentinel',
     lookId: 'class_guardian',
     description:
-      'An unyielding bastion of hammered bronze who commands orbiting war-hammers and an unbreakable Aegis Sanctum.',
+      'An unyielding bastion of hammered bronze who commands orbiting war-hammers and tolls the Doom Bell.',
     color: '#f59e0b',
     glowColor: 'rgba(245, 158, 11, 0.45)',
     startingArtId: 'hammer_of_judgment',
     ultimate: {
-      id: 'aegis_sanctum',
-      name: 'Aegis Sanctum',
+      id: 'doom_bell',
+      name: 'Doom Bell',
       cooldown: 13,
-      description: 'Restore 100% of Maximum Ward instantly and slam down a consecrated shockwave.',
+      description: 'Tolls a wide physical shockwave that knocks back nearby foes and restores 60% of Maximum Ward.',
     },
   },
 ];

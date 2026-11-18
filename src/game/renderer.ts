@@ -559,23 +559,23 @@ export function renderGame(
     ctx.restore();
   }
 
-  // Totems (Storm Totem & Searing Bond)
+  // Totems (Flame Totem & Ballista Sentry)
   for (const t of engine.totems) {
     ctx.save();
     ctx.translate(t.x, t.y);
-    const isFire = t.artId === 'searing_bond';
+    const isFire = t.artId === 'flame_totem';
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.beginPath();
     ctx.ellipse(0, 4, 14, 9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#334155';
-    ctx.strokeStyle = isFire ? '#ea580c' : '#38bdf8';
+    ctx.strokeStyle = isFire ? '#e8824a' : '#c8b890';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, 0, 11, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = isFire ? '#fb923c' : '#7dd3fc';
+    ctx.fillStyle = isFire ? '#fb923c' : '#e2e8f0';
     ctx.beginPath();
     ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
     ctx.fill();

@@ -256,37 +256,29 @@ export class HollowWarEngine {
     });
 
     switch (ult.id) {
-      case 'tempest_convergence': {
-        // Frost pulse + 8 seeking arcane bolts
-        const r = 185 * this.sheet.get('area', ['aoe', 'cold']);
-        this.novas.push({ x: this.player.x, y: this.player.y, radius: 12, maxRadius: r, color: '#67e8f9', life: 0.35, maxLife: 0.35 });
-        const pulseSpec: SkillDamageSpec = { baseDamage: { cold: 42 }, baseCooldown: 1, tags: ['spell', 'aoe', 'cold'] };
-        for (const e of this.enemies) {
-          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
-            this.applyArtHit(e, pulseSpec, []);
+      case 'stormcrown': {
+        // Calls down 12 lightning bolts across nearby foes
+        const stormSpec: SkillDamageSpec = { baseDamage: { lightning: 44 }, baseCooldown: 1, tags: ['spell', 'lightning'] };
+        const pool = this.enemies.filter((e) => e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) < 360);
+        for (let i = 0; i < 12; i++) {
+          const target = pool.length > 0 ? pool[i % pool.length] : null;
+          if (target) {
+            this.arcs.push({
+              points: [
+                { x: target.x + (Math.random() - 0.5) * 30, y: target.y - 160 },
+                { x: target.x, y: target.y },
+              ],
+              color: '#38bdf8',
+              life: 0.22,
+              maxLife: 0.22,
+            });
+            this.applyArtHit(target, stormSpec, [{ stat: 'shockChance', kind: 'flat', value: 0.6 }]);
           }
-        }
-        for (let i = 0; i < 8; i++) {
-          const a = (i / 8) * Math.PI * 2;
-          this.projectiles.push({
-            id: nextEntityId++,
-            x: this.player.x,
-            y: this.player.y,
-            vx: Math.cos(a) * 580,
-            vy: Math.sin(a) * 580,
-            radius: 7,
-            color: '#7a9aff',
-            artId: 'frostbolt',
-            pierceLeft: 1,
-            life: 1.6,
-            hitIds: new Set(),
-            homing: true,
-          });
         }
         break;
       }
       case 'red_hour': {
-        // Massive iron shockwave + 4s Bloodlust
+        // Massive iron shockwave + 4s Red Hour Bloodlust
         const r = 190 * this.sheet.get('area', ['aoe', 'physical']);
         this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#ef4444', life: 0.32, maxLife: 0.32 });
         const slamSpec: SkillDamageSpec = { baseDamage: { physical: 68 }, baseCooldown: 1, tags: ['attack', 'aoe', 'physical'] };
@@ -303,62 +295,55 @@ export class HollowWarEngine {
         ]);
         break;
       }
-      case 'shadow_step': {
-        // Rapid blink + 7-blade fan
-        let dx = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
-        let dy = (this.input.down ? 1 : 0) - (this.input.up ? 1 : 0);
-        if (dx === 0 && dy === 0) {
-          dx = Math.cos(this.player.aimAngle);
-          dy = Math.sin(this.player.aimAngle);
-        } else {
-          const len = Math.hypot(dx, dy);
-          dx /= len;
-          dy /= len;
+      case 'hundred_partings': {
+        // Briefly chills/stills nearby foes + 9-blade piercing crescent
+        const r = 210;
+        this.novas.push({ x: this.player.x, y: this.player.y, radius: 12, maxRadius: r, color: '#a3b899', life: 0.25, maxLife: 0.25 });
+        for (const e of this.enemies) {
+          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
+            e.ailments.push({ type: 'chill', dps: 0, remaining: 2.0, maxDuration: 2.0 });
+          }
         }
-        this.player.dashDirX = dx;
-        this.player.dashDirY = dy;
-        this.player.dashTimer = 0.18;
-        this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.38);
-        this.spawnParticles(this.player.x, this.player.y, '#8fa189', 16, 180);
-        const baseA = Math.atan2(-dy, -dx);
-        for (let i = 0; i < 7; i++) {
-          const a = baseA + (i - 3) * 0.22;
+        const baseA = this.player.aimAngle;
+        for (let i = 0; i < 9; i++) {
+          const a = baseA + (i - 4) * 0.14;
           this.projectiles.push({
             id: nextEntityId++,
             x: this.player.x,
             y: this.player.y,
-            vx: Math.cos(a) * 640,
-            vy: Math.sin(a) * 640,
+            vx: Math.cos(a) * 680,
+            vy: Math.sin(a) * 680,
             radius: 6,
             color: '#c084fc',
             artId: 'fan_of_blades',
-            pierceLeft: 2,
+            pierceLeft: 3,
             life: 1.3,
             hitIds: new Set(),
           });
         }
         break;
       }
-      case 'grave_reckoning': {
-        // Blight ring + Poison + Life drain
-        const r = 220 * this.sheet.get('area', ['aoe', 'chaos']);
-        this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#a855f7', life: 0.38, maxLife: 0.38 });
-        const blightSpec: SkillDamageSpec = { baseDamage: { chaos: 54 }, baseCooldown: 1, tags: ['spell', 'aoe', 'chaos'] };
-        let hits = 0;
-        for (const e of this.enemies) {
-          if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
-            this.applyArtHit(e, blightSpec, []);
-            e.ailments.push({ type: 'poison', dps: 16 * this.sheet.get('dotDamage'), remaining: 4, maxDuration: 4 });
-            hits++;
-          }
-        }
-        if (hits > 0) {
-          this.player.life = Math.min(this.sheet.get('life'), this.player.life + Math.min(35, hits * 3));
+      case 'grave_tide': {
+        // Summons 6 temporary Risen Skeletons in a burst for 10 seconds
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          this.minions.push({
+            id: nextEntityId++,
+            artId: 'raise_skeleton',
+            kind: 'skeleton',
+            x: this.player.x + Math.cos(a) * 56,
+            y: this.player.y + Math.sin(a) * 56,
+            facing: a,
+            attackTimer: 0.1,
+            temporary: true,
+            life: 10,
+          });
+          this.spawnParticles(this.player.x + Math.cos(a) * 56, this.player.y + Math.sin(a) * 56, '#a855f7', 5, 80);
         }
         break;
       }
       case 'pillar_of_flame': {
-        // Colossal fire inferno + guaranteed ignite
+        // Burning ring that sears & ignites every foe caught within
         const r = 230 * this.sheet.get('area', ['aoe', 'fire']);
         this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#f97316', life: 0.36, maxLife: 0.36 });
         const fireSpec: SkillDamageSpec = { baseDamage: { fire: 78 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire'] };
@@ -369,15 +354,21 @@ export class HollowWarEngine {
         }
         break;
       }
-      case 'aegis_sanctum': {
-        // Restore 100% Ward + consecrated shockwave
-        this.player.ward = this.sheet.get('ward');
-        const r = 200 * this.sheet.get('area', ['aoe', 'fire']);
+      case 'doom_bell': {
+        // Wide physical shockwave + knockback + restore 60% Maximum Ward
+        const maxW = this.sheet.get('ward');
+        this.player.ward = Math.min(maxW, this.player.ward + maxW * 0.6);
+        const r = 220 * this.sheet.get('area', ['aoe', 'physical']);
         this.novas.push({ x: this.player.x, y: this.player.y, radius: 14, maxRadius: r, color: '#fbbf24', life: 0.34, maxLife: 0.34 });
-        const slamSpec: SkillDamageSpec = { baseDamage: { physical: 40, fire: 40 }, baseCooldown: 1, tags: ['spell', 'aoe', 'fire', 'physical'] };
+        const bellSpec: SkillDamageSpec = { baseDamage: { physical: 72 }, baseCooldown: 1, tags: ['attack', 'aoe', 'physical'] };
         for (const e of this.enemies) {
           if (e.life > 0 && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= r + e.radius) {
-            this.applyArtHit(e, slamSpec, []);
+            this.applyArtHit(e, bellSpec, []);
+            const dx = e.x - this.player.x;
+            const dy = e.y - this.player.y;
+            const d = Math.max(1, Math.hypot(dx, dy));
+            e.x += (dx / d) * 65;
+            e.y += (dy / d) * 65;
           }
         }
         break;
@@ -405,7 +396,7 @@ export class HollowWarEngine {
             value: (this.level - 1) * 0.22,
             source: `Rank ${this.level}`,
           });
-          if (this.artId === 'chain_lightning' || this.artId === 'storm_totem') {
+          if (this.artId === 'chain_lightning') {
             mods.push({ stat: 'chainCount', kind: 'flat', value: this.level - 1 });
           } else if (
             this.artId === 'hammer_of_judgment' ||
@@ -415,7 +406,8 @@ export class HollowWarEngine {
             this.artId === 'raise_skeleton' ||
             this.artId === 'flame_sprite' ||
             this.artId === 'void_orb' ||
-            this.artId === 'bone_golem'
+            this.artId === 'bone_golem' ||
+            this.artId === 'ballista_sentry'
           ) {
             mods.push({ stat: 'projectileCount', kind: 'flat', value: Math.floor((this.level - 1) / 2) + (this.level >= 2 ? 1 : 0) });
           } else if (
@@ -425,9 +417,9 @@ export class HollowWarEngine {
             this.artId === 'consecration' ||
             this.artId === 'poison_nova' ||
             this.artId === 'frost_nova' ||
-            this.artId === 'cinder_trap' ||
+            this.artId === 'fire_mine' ||
             this.artId === 'frost_trap' ||
-            this.artId === 'searing_bond' ||
+            this.artId === 'flame_totem' ||
             this.artId === 'fireball'
           ) {
             mods.push({ stat: 'area', kind: 'inc', value: (this.level - 1) * 0.12 });
@@ -663,7 +655,7 @@ export class HollowWarEngine {
     const extraMods = this.getArtExtraMods(art);
     const desired =
       def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
-    const current = this.minions.filter((m) => m.artId === art.artId);
+    const current = this.minions.filter((m) => m.artId === art.artId && !m.temporary);
     if (current.length < desired) {
       const kind =
         art.artId === 'flame_sprite'
@@ -687,11 +679,20 @@ export class HollowWarEngine {
   }
 
   private updateMinions(dt: number): void {
-    for (const m of this.minions) {
+    for (let i = this.minions.length - 1; i >= 0; i--) {
+      const m = this.minions[i];
+      if (m.temporary && m.life !== undefined) {
+        m.life -= dt;
+        if (m.life <= 0) {
+          this.minions.splice(i, 1);
+          continue;
+        }
+      }
       const art = this.arts.find((a) => a.artId === m.artId);
       const def = ARTS[m.artId];
-      if (!art || !def) continue;
-      const extraMods = this.getArtExtraMods(art);
+      if (!def) continue;
+      if (!art && !m.temporary) continue;
+      const extraMods = art ? this.getArtExtraMods(art) : [];
 
       if (m.attackTimer > 0) m.attackTimer -= dt;
 
@@ -791,19 +792,44 @@ export class HollowWarEngine {
         const def = ARTS[t.artId];
         if (!art || !def) continue;
         const extraMods = this.getArtExtraMods(art);
-        const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
-        t.fireTimer = 0.88 / spd;
+        const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
+        const spd = Math.max(0.2, this.sheet.get(speedStat, def.tags, extraMods));
+        t.fireTimer = 0.72 / spd;
+
         const range = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
-        if (def.id === 'searing_bond') {
-          this.novas.push({ x: t.x, y: t.y, radius: 10, maxRadius: range, color: '#ea580c', life: 0.26, maxLife: 0.26 });
-          for (const e of this.enemies) {
-            if (e.life > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= range + e.radius) {
-              this.applyArtHit(e, def, extraMods, art);
-            }
+        let nearest: Enemy | null = null;
+        let bestDist = range;
+        for (const e of this.enemies) {
+          if (e.life <= 0) continue;
+          const d = Math.hypot(e.x - t.x, e.y - t.y);
+          if (d <= bestDist) {
+            bestDist = d;
+            nearest = e;
           }
-        } else {
-          const chains = (def.baseChain ?? 2) + Math.max(0, Math.round(this.sheet.get('chainCount', def.tags, extraMods)));
-          this.castChainLightning(t.x, t.y, range, chains, def, extraMods, art);
+        }
+        if (nearest) {
+          const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+          const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
+          const baseA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
+          const projSpeed = def.projectileSpeed ?? 540;
+          const spread = count > 1 ? 0.16 : 0;
+          for (let k = 0; k < count; k++) {
+            const a = baseA + (k - (count - 1) / 2) * spread;
+            this.projectiles.push({
+              id: nextEntityId++,
+              x: t.x,
+              y: t.y,
+              vx: Math.cos(a) * projSpeed,
+              vy: Math.sin(a) * projSpeed,
+              radius: 6,
+              color: def.color,
+              artId: def.id,
+              pierceLeft: pierce,
+              life: 1.4,
+              hitIds: new Set(),
+              extraMods,
+            });
+          }
         }
       }
     }

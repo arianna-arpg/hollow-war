@@ -144,7 +144,7 @@ describe('Hollow War Combat SDK', () => {
     // Fill active Arts to MAX_ACTIVE_ARTS (4)
     engine.addOrRankArt('whirlwind');
     engine.addOrRankArt('raise_skeleton');
-    engine.addOrRankArt('cinder_trap');
+    engine.addOrRankArt('fire_mine');
     expect(engine.arts.length).toBe(MAX_ACTIVE_ARTS);
 
     // Unlearned Arts must not be offered once 4 Arts are active

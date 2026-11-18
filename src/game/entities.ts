@@ -146,6 +146,8 @@ export interface MinionEntity {
   y: number;
   facing: number;
   attackTimer: number;
+  temporary?: boolean;
+  life?: number;
 }
 
 export interface TotemEntity {

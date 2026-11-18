@@ -2,7 +2,7 @@ import type { ConversionRule, ExtraDamageRule, Modifier, ProcSpec, SkillTag } fr
 import { MAX_ART_RANK } from './skills.ts';
 
 export type UpgradeRarity = 'common' | 'rare' | 'mythic' | 'oath';
-export type UpgradeCategory = 'art' | 'inscription' | 'passive' | 'oath' | 'shards';
+export type UpgradeCategory = 'art' | 'art_archetype' | 'inscription' | 'passive' | 'oath' | 'shards';
 
 export interface UpgradeCardDef {
   id: string;
@@ -13,6 +13,7 @@ export interface UpgradeCardDef {
   tags: readonly SkillTag[];
   maxStacks?: number;
   artId?: string;
+  archetype?: string;
   inscriptionId?: string;
   mods?: Modifier[];
   conversions?: ConversionRule[];
@@ -402,6 +403,16 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     artId: 'soulrend',
     description: 'Master Soulrend.',
     tags: ['spell', 'projectile', 'chaos', 'dot'],
+  },
+  {
+    id: 'art_shambling_horde',
+    name: 'Art: Shambling Horde',
+    category: 'art',
+    rarity: 'rare',
+    maxStacks: MAX_ART_RANK,
+    artId: 'shambling_horde',
+    description: 'Master Shambling Horde.',
+    tags: ['spell', 'minion', 'physical', 'chaos', 'dot'],
   },
 
   // === PASSIVES & CONDUITS (Inscriptions are now offered dynamically per active Art!) ===

@@ -45,11 +45,25 @@ import type {
 } from './entities.ts';
 import { createEnemy, pickArchetypeForTime, resetEnemyIds } from './spawner.ts';
 
-export type GamePhase = 'vessel_select' | 'archive' | 'playing' | 'draft' | 'inscribe' | 'paused' | 'game_over';
+export type GamePhase =
+  | 'vessel_select'
+  | 'archive'
+  | 'playing'
+  | 'draft'
+  | 'art_select'
+  | 'inscribe'
+  | 'paused'
+  | 'game_over';
 
 export interface InscribeChoiceState {
   artId: string;
   options: Array<{ ins: InscriptionDef; dpsDeltaPct: number }>;
+}
+
+export interface ArtSelectChoiceState {
+  archetype: ArtArchetypeFilter;
+  label: string;
+  options: Array<{ artDef: ArtDefinition; isRankUp: boolean; nextRank: number; dpsDeltaPct: number }>;
 }
 
 export interface DraftOption {
@@ -162,8 +176,7 @@ export class HollowWarEngine {
   particles: Particle[] = [];
 
   draftOptions: DraftOption[] = [];
-  draftArchetype: ArtArchetypeFilter = 'all';
-  private archetypeShiftedThisDraft = false;
+  artSelectChoice: ArtSelectChoiceState | null = null;
   inscribeChoice: InscribeChoiceState | null = null;
   thronelord: { id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string } | null = null;
 
@@ -260,8 +273,7 @@ export class HollowWarEngine {
     this.floatingTexts = [];
     this.particles = [];
     this.draftOptions = [];
-    this.draftArchetype = 'all';
-    this.archetypeShiftedThisDraft = false;
+    this.artSelectChoice = null;
     this.inscribeChoice = null;
     this.thronelord = null;
 
@@ -795,13 +807,17 @@ export class HollowWarEngine {
       }
     } else if (def.behavior === 'ground_zone') {
       if (this.groundZones.length >= 4) this.groundZones.shift();
-      const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+      const maxRadius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+      const isBlight = def.id === 'blight_zone';
+      const initialRadius = isBlight ? maxRadius * 0.36 : maxRadius;
       this.groundZones.push({
         id: nextEntityId++,
         artId: def.id,
         x: this.player.x,
         y: this.player.y,
-        radius,
+        radius: initialRadius,
+        initialRadius,
+        expandToRadius: isBlight ? maxRadius * 1.35 : maxRadius,
         life: 4.5,
         maxLife: 4.5,
         tickTimer: 0.05,
@@ -961,6 +977,42 @@ export class HollowWarEngine {
           delay: aftershockIns.aftershockDelay,
         });
       }
+    } else if (def.behavior === 'thrust') {
+      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      const reach = def.baseRadius * areaScale;
+      const halfWidth = 19 * Math.sqrt(areaScale);
+      const reachOffset = art.inscriptions.reduce((s, i) => s + (i.sweepReachOffset ?? 0), 0);
+      const ox = this.player.x + Math.cos(this.player.aimAngle) * reachOffset;
+      const oy = this.player.y + Math.sin(this.player.aimAngle) * reachOffset;
+      const doReverse = art.inscriptions.some((i) => i.reverseSweep);
+      const angles = doReverse ? [this.player.aimAngle, this.player.aimAngle + Math.PI] : [this.player.aimAngle];
+
+      for (const thrustAngle of angles) {
+        const dx = Math.cos(thrustAngle);
+        const dy = Math.sin(thrustAngle);
+        this.sweeps.push({
+          x: ox,
+          y: oy,
+          angle: thrustAngle,
+          radius: reach,
+          arcSpread: 0.15,
+          color: def.color,
+          life: 0.18,
+          maxLife: 0.18,
+          isThrust: true,
+        });
+        for (const e of this.enemies) {
+          if (e.life <= 0) continue;
+          const ex = e.x - ox;
+          const ey = e.y - oy;
+          const proj = Math.max(0, Math.min(reach, ex * dx + ey * dy));
+          const cx = ox + dx * proj;
+          const cy = oy + dy * proj;
+          if (Math.hypot(e.x - cx, e.y - cy) <= halfWidth + e.radius) {
+            this.applyArtHit(e, def, extraMods, art);
+          }
+        }
+      }
     } else if (def.behavior === 'cascade_line') {
       const areaScale = this.sheet.get('area', def.tags, extraMods);
       const radius = def.baseRadius * areaScale;
@@ -1018,7 +1070,7 @@ export class HollowWarEngine {
         this.minions.push({
           id: nextEntityId++,
           artId: def.id,
-          kind: 'skeleton',
+          kind: def.id === 'shambling_horde' ? 'zombie' : 'skeleton',
           x: this.player.x + Math.cos(a) * 44,
           y: this.player.y + Math.sin(a) * 44,
           facing: a,
@@ -1152,14 +1204,14 @@ export class HollowWarEngine {
         }
       }
 
-      if (m.kind === 'skeleton' || m.kind === 'bone_golem') {
+      if (m.kind === 'skeleton' || m.kind === 'bone_golem' || m.kind === 'zombie') {
         const speedMult = art ? art.inscriptions.reduce((s, ins) => s * (ins.minionSpeedScale ?? 1), 1) : 1;
         const cleaveBase = art ? art.inscriptions.reduce((s, ins) => s + (ins.minionCleaveRadius ?? 0), 0) : 0;
         if (nearest) {
           const dx = nearest.x - m.x;
           const dy = nearest.y - m.y;
           m.facing = Math.atan2(dy, dx);
-          const moveSpd = (m.kind === 'bone_golem' ? 165 : 205) * speedMult;
+          const moveSpd = (m.kind === 'bone_golem' ? 165 : m.kind === 'zombie' ? 155 : 205) * speedMult;
           const reach = m.kind === 'bone_golem' ? 28 : 18;
           if (bestDist > nearest.radius + reach) {
             m.x += (dx / bestDist) * moveSpd * dt;
@@ -1347,6 +1399,10 @@ export class HollowWarEngine {
         this.groundZones.splice(i, 1);
         continue;
       }
+      if (gz.initialRadius !== undefined && gz.expandToRadius !== undefined) {
+        const progress = Math.min(1, Math.max(0, 1 - gz.life / gz.maxLife));
+        gz.radius = gz.initialRadius + (gz.expandToRadius - gz.initialRadius) * progress;
+      }
       gz.tickTimer -= dt;
       if (gz.tickTimer <= 0) {
         const art = this.arts.find((a) => a.artId === gz.artId);
@@ -1362,7 +1418,7 @@ export class HollowWarEngine {
           }
         }
         // Consecration also heals the player while standing on consecrated ground
-        if (Math.hypot(this.player.x - gz.x, this.player.y - gz.y) <= gz.radius + this.player.radius) {
+        if (gz.artId === 'consecration' && Math.hypot(this.player.x - gz.x, this.player.y - gz.y) <= gz.radius + this.player.radius) {
           this.player.life = Math.min(this.sheet.get('life'), this.player.life + 3.5);
         }
       }
@@ -1423,6 +1479,8 @@ export class HollowWarEngine {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.6 });
     } else if (art?.artId === 'viper_strike') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.55 });
+    } else if (art?.artId === 'shambling_horde' || art?.artId === 'blight_zone') {
+      innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.45 });
     } else if (art?.artId === 'rend') {
       innateAilmentMods.push({ stat: 'bleedChance', kind: 'flat', value: 0.65 });
     }
@@ -2384,19 +2442,8 @@ export class HollowWarEngine {
   }
 
   openDraft(): void {
-    this.archetypeShiftedThisDraft = false;
     this.draftOptions = this.rollDraftOptions(3);
     this.setPhase('draft');
-  }
-
-  setDraftArchetype(filter: ArtArchetypeFilter): void {
-    if (this.draftArchetype === filter) return;
-    this.draftArchetype = filter;
-    if (this.phase === 'draft' && !this.archetypeShiftedThisDraft) {
-      this.archetypeShiftedThisDraft = true;
-      this.draftOptions = this.rollDraftOptions(3);
-    }
-    this.onPhaseChange?.(this.phase);
   }
 
   rerollDraft(): void {
@@ -2411,6 +2458,19 @@ export class HollowWarEngine {
     }
     this.draftOptions = next;
     this.onPhaseChange?.(this.phase);
+  }
+
+  backFromArtSelect(): void {
+    if (this.phase !== 'art_select') return;
+    this.artSelectChoice = null;
+    this.setPhase('draft');
+  }
+
+  rerollArtSelect(): void {
+    if (this.player.rerolls <= 0 || this.phase !== 'art_select' || !this.artSelectChoice) return;
+    this.player.rerolls -= 1;
+    const prevArtIds = new Set(this.artSelectChoice.options.map((o) => o.artDef.id));
+    this.openArtSelectForArchetype(this.artSelectChoice.archetype, prevArtIds);
   }
 
   backFromInscribe(): void {
@@ -2473,6 +2533,22 @@ export class HollowWarEngine {
     });
   }
 
+  private getEligibleArtsForArchetype(archetype: ArtArchetypeFilter): ArtDefinition[] {
+    return Object.values(ARTS).filter((def) => {
+      const active = this.arts.find((a) => a.artId === def.id);
+      if (active) {
+        if (active.level >= MAX_ART_RANK) return false;
+      } else {
+        if (this.arts.length >= MAX_ACTIVE_ARTS) return false;
+      }
+      if (archetype === 'all') return true;
+      if (archetype === 'construct') {
+        return def.tags.includes('minion') || def.tags.includes('totem') || def.tags.includes('trap');
+      }
+      return def.tags.includes(archetype);
+    });
+  }
+
   private rollDraftOptions(count: number, excludeIds: Set<string> = new Set()): DraftOption[] {
     const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
     const affinityBoost = 1.2 + getArchiveBonuses(this.archive).affinityLevel * 1.4;
@@ -2485,36 +2561,46 @@ export class HollowWarEngine {
 
     const eligible: WeightedCandidate[] = [];
 
-    const matchesArchetype = (tags: readonly SkillTag[]): boolean => {
-      if (this.draftArchetype === 'all') return false;
-      if (this.draftArchetype === 'construct') {
-        return tags.includes('minion') || tags.includes('totem') || tags.includes('trap');
-      }
-      return tags.includes(this.draftArchetype);
-    };
-
     for (const card of UPGRADE_POOL) {
       if (this.banishedCards.has(card.id) || excludeIds.has(card.id)) continue;
-
-      if (card.category === 'art' && card.artId) {
-        const active = this.arts.find((a) => a.artId === card.artId);
-        if (active) {
-          if (active.level >= MAX_ART_RANK) continue;
-        } else {
-          if (this.arts.length >= MAX_ACTIVE_ARTS) continue;
-        }
-        const shared = card.tags.filter((t) => activeTags.has(t)).length;
-        const rankBonus = active ? 1.5 : 1.0;
-        const focusMult = matchesArchetype(card.tags) ? 6.0 : this.draftArchetype !== 'all' ? 0.45 : 1.0;
-        eligible.push({ card, weight: rankBonus * (1 + shared * affinityBoost) * focusMult });
-        continue;
-      }
+      // Individual Art cards are grouped into Archetype Art offerings below to prevent pool dilution
+      if (card.category === 'art') continue;
 
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
       const shared = card.tags.filter((t) => activeTags.has(t)).length;
-      const focusMult = matchesArchetype(card.tags) ? 4.2 : 1.0;
-      eligible.push({ card, weight: (1 + shared * affinityBoost) * focusMult });
+      eligible.push({ card, weight: 1 + shared * affinityBoost });
+    }
+
+    // Grouped "Art: <Archetype>" offerings (e.g. Art: Fire, Art: Cold)
+    const artArchetypes: Array<{ id: ArtArchetypeFilter; label: string; tags: SkillTag[] }> = [
+      { id: 'physical', label: 'Physical', tags: ['physical'] },
+      { id: 'fire', label: 'Fire', tags: ['fire'] },
+      { id: 'cold', label: 'Cold', tags: ['cold'] },
+      { id: 'lightning', label: 'Lightning', tags: ['lightning'] },
+      { id: 'chaos', label: 'Chaos', tags: ['chaos'] },
+      { id: 'attack', label: 'Attack', tags: ['attack'] },
+      { id: 'construct', label: 'Constructs', tags: ['minion', 'totem', 'trap'] },
+    ];
+    for (const arch of artArchetypes) {
+      const cardId = `art_arch_${arch.id}`;
+      if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
+      const matchingArts = this.getEligibleArtsForArchetype(arch.id);
+      if (matchingArts.length === 0) continue;
+      const shared = arch.tags.filter((t) => activeTags.has(t)).length;
+      const hasActiveToRank = matchingArts.some((d) => this.arts.some((a) => a.artId === d.id));
+      eligible.push({
+        card: {
+          id: cardId,
+          name: `Art: ${arch.label}`,
+          category: 'art_archetype',
+          rarity: 'rare',
+          archetype: arch.id,
+          description: `Choose from up to 4 ${arch.label} Arts to learn or deepen in rank (${matchingArts.length} available).`,
+          tags: arch.tags,
+        },
+        weight: (hasActiveToRank ? 2.4 : 1.7) + shared * affinityBoost * 0.9,
+      });
     }
 
     // Inverted Inscription system: offer one "Inscribe: <Active Art>" card per active Art with open sockets
@@ -2525,7 +2611,6 @@ export class HollowWarEngine {
       const def = ARTS[ar.artId];
       const cardId = `inscribe_${ar.artId}`;
       if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
-      const focusMult = matchesArchetype(def.tags) ? 2.8 : 1.0;
       eligible.push({
         card: {
           id: cardId,
@@ -2536,21 +2621,26 @@ export class HollowWarEngine {
           description: `Choose an Inscription from up to 4 compatible runes to etch onto ${def.name} (${ar.inscriptions.length}/${maxIns} etched).`,
           tags: def.tags,
         },
-        weight: (2.2 + affinityBoost * 0.8) * focusMult,
+        weight: 2.2 + affinityBoost * 0.8,
       });
     }
 
-    // Weighted sampling without replacement, capping Inscribe cards to at most 1 per 3-card draft
+    // Weighted sampling without replacement, capping Inscribe & Art Archetype cards to at most 1 each per 3-card draft
     const picked: WeightedCandidate[] = [];
     const pool = [...eligible];
     let inscriptionCount = 0;
+    let artArchCount = 0;
 
     while (picked.length < count && pool.length > 0) {
-      const nonInsLeft = pool.some((c) => c.card.category !== 'inscription');
-      const filtered =
-        inscriptionCount >= 1 && nonInsLeft
-          ? pool.filter((c) => c.card.category !== 'inscription')
-          : pool;
+      let filtered = pool;
+      if (inscriptionCount >= 1) {
+        const alt = filtered.filter((c) => c.card.category !== 'inscription');
+        if (alt.length > 0) filtered = alt;
+      }
+      if (artArchCount >= 1) {
+        const alt = filtered.filter((c) => c.card.category !== 'art_archetype');
+        if (alt.length > 0) filtered = alt;
+      }
 
       const totalW = filtered.reduce((s, c) => s + c.weight, 0);
       let r = Math.random() * totalW;
@@ -2565,6 +2655,7 @@ export class HollowWarEngine {
 
       picked.push(chosen);
       if (chosen.card.category === 'inscription') inscriptionCount++;
+      if (chosen.card.category === 'art_archetype') artArchCount++;
       const idx = pool.indexOf(chosen);
       if (idx >= 0) pool.splice(idx, 1);
     }
@@ -2593,6 +2684,12 @@ export class HollowWarEngine {
       return {
         card,
         summaryText: 'Etch Inscription',
+      };
+    }
+    if (card.category === 'art_archetype') {
+      return {
+        card,
+        summaryText: this.arts.length >= MAX_ACTIVE_ARTS ? 'Deepen Art' : `Art Tome (${this.arts.length}/${MAX_ACTIVE_ARTS})`,
       };
     }
 
@@ -2660,6 +2757,11 @@ export class HollowWarEngine {
       return;
     }
 
+    if (card.category === 'art_archetype' && card.archetype) {
+      this.openArtSelectForArchetype(card.archetype as ArtArchetypeFilter);
+      return;
+    }
+
     const stacks = (this.acquiredCards.get(card.id) ?? 0) + 1;
     this.acquiredCards.set(card.id, stacks);
 
@@ -2678,6 +2780,77 @@ export class HollowWarEngine {
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
 
+    this.setPhase('playing');
+  }
+
+  private openArtSelectForArchetype(archetype: ArtArchetypeFilter, excludeIds: Set<string> = new Set()): void {
+    const allEligible = this.getEligibleArtsForArchetype(archetype);
+    if (allEligible.length === 0) {
+      this.setPhase('playing');
+      return;
+    }
+    let pool = allEligible.filter((d) => !excludeIds.has(d.id));
+    if (pool.length < Math.min(4, allEligible.length)) {
+      const rest = allEligible.filter((d) => !pool.includes(d));
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j], rest[i]];
+      }
+      pool = [...pool, ...rest];
+    } else {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+    // Sort active Arts slightly forward so rank-ups are easy to spot, then take up to 4
+    const chosen = pool.slice(0, 4);
+    const beforeDps = this.getTotalEstimatedDps();
+
+    const options = chosen.map((artDef) => {
+      const active = this.arts.find((a) => a.artId === artDef.id);
+      const isRankUp = Boolean(active);
+      const nextRank = active ? active.level + 1 : 1;
+
+      let afterDps = 0;
+      for (const ar of this.arts) {
+        const d = ARTS[ar.artId];
+        const extraMods = [...this.getArtExtraMods(ar)];
+        if (ar.artId === artDef.id) {
+          extraMods.push(...getArtRankStep(ar.artId, nextRank).mods);
+        }
+        const extraConvs = ar.inscriptions.flatMap((i) => i.conversions ?? []);
+        const extraExtras = ar.inscriptions.flatMap((i) => i.extras ?? []);
+        const echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
+        afterDps += previewSkillDps(this.sheet, d, extraMods, d.baseProjectiles, extraConvs, extraExtras, echoMult).estimatedDps;
+      }
+      if (!active) {
+        afterDps += previewSkillDps(this.sheet, artDef, [], artDef.baseProjectiles).estimatedDps;
+      }
+      const dpsDeltaPct = beforeDps > 0 ? ((afterDps - beforeDps) / beforeDps) * 100 : 0;
+      return { artDef, isRankUp, nextRank, dpsDeltaPct };
+    });
+
+    const labelMap: Record<ArtArchetypeFilter, string> = {
+      all: 'All',
+      physical: 'Physical',
+      fire: 'Fire',
+      cold: 'Cold',
+      lightning: 'Lightning',
+      chaos: 'Chaos',
+      attack: 'Attack',
+      construct: 'Constructs',
+    };
+    this.artSelectChoice = { archetype, label: labelMap[archetype], options };
+    this.setPhase('art_select');
+  }
+
+  pickArtChoice(artId: string): void {
+    if (!this.artSelectChoice) return;
+    this.addOrRankArt(artId);
+    this.artSelectChoice = null;
+    this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
+    this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
     this.setPhase('playing');
   }
 

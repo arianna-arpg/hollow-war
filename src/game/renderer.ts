@@ -717,24 +717,44 @@ export function renderGame(
     ctx.restore();
   }
 
-  // Cleave Sweeps
+  // Cleave Sweeps & Thrusts
   for (const sw of engine.sweeps) {
     const alpha = Math.max(0, sw.life / sw.maxLife);
     ctx.save();
     ctx.translate(sw.x, sw.y);
-    ctx.globalAlpha = alpha * 0.8;
-    ctx.strokeStyle = sw.color;
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.arc(0, 0, sw.radius * 0.85, sw.angle - sw.arcSpread / 2, sw.angle + sw.arcSpread / 2);
-    ctx.stroke();
-    ctx.globalAlpha = alpha * 0.22;
-    ctx.fillStyle = sw.color;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, sw.radius, sw.angle - sw.arcSpread / 2, sw.angle + sw.arcSpread / 2);
-    ctx.closePath();
-    ctx.fill();
+    if (sw.isThrust) {
+      ctx.rotate(sw.angle);
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = sw.color;
+      ctx.beginPath();
+      ctx.moveTo(8, -10);
+      ctx.lineTo(sw.radius, 0);
+      ctx.lineTo(8, 10);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.globalAlpha = alpha * 0.92;
+      ctx.strokeStyle = sw.color;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(sw.radius, 0);
+      ctx.stroke();
+    } else {
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.strokeStyle = sw.color;
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.arc(0, 0, sw.radius * 0.85, sw.angle - sw.arcSpread / 2, sw.angle + sw.arcSpread / 2);
+      ctx.stroke();
+      ctx.globalAlpha = alpha * 0.22;
+      ctx.fillStyle = sw.color;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, sw.radius, sw.angle - sw.arcSpread / 2, sw.angle + sw.arcSpread / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -824,6 +844,21 @@ export function renderGame(
       ctx.fillStyle = '#94a3b8';
       ctx.fillRect(2, 5, 11, 2.5);
       drawSkull(ctx, 5, 11, '#e7e5e4', '#a855f7');
+    } else if (m.kind === 'zombie') {
+      ctx.strokeStyle = 'rgba(132, 204, 22, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(m.facing);
+      ctx.fillStyle = '#4d7c0f';
+      ctx.beginPath();
+      ctx.ellipse(-1, 0, 8, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#84cc16';
+      ctx.fillRect(3, -7, 7, 3);
+      ctx.fillRect(3, 4, 7, 3);
+      drawSkull(ctx, 4, 10, '#a3e635', '#a855f7');
     } else if (m.kind === 'bone_golem') {
       ctx.strokeStyle = 'rgba(214, 211, 209, 0.5)';
       ctx.lineWidth = 2;

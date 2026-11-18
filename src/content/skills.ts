@@ -14,6 +14,7 @@ export type ArtBehavior =
   | 'nova'
   | 'ground_zone'
   | 'sweep'
+  | 'thrust'
   | 'cascade_line'
   | 'minion'
   | 'totem'
@@ -686,16 +687,34 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'viper_strike',
     name: 'Viper Strike',
     description:
-      'Executes a swift venomous slash that tears through enemies with chaos-tainted steel.',
+      'Juts forward in a narrow venomous stab, piercing every foe along the line with chaos-tainted steel.',
     color: '#84cc16',
-    behavior: 'sweep',
-    baseDamage: { chaos: 18, physical: 14 },
-    damageEffectiveness: 1.05,
-    baseCooldown: 0.56,
-    baseCritChance: 0.08,
+    behavior: 'thrust',
+    baseDamage: { chaos: 20, physical: 16 },
+    damageEffectiveness: 1.1,
+    baseCooldown: 0.54,
+    baseCritChance: 0.09,
     baseProjectiles: 1,
-    baseRadius: 96,
-    tags: ['attack', 'aoe', 'chaos', 'physical', 'dot'],
+    baseRadius: 135,
+    tags: ['attack', 'chaos', 'physical', 'dot'],
+  },
+  shambling_horde: {
+    id: 'shambling_horde',
+    name: 'Shambling Horde',
+    description:
+      'Raises a shambling tide of 4 Risen Zombies (up to 20 active) that lurch into packs with necrotic claws.',
+    color: '#84cc16',
+    behavior: 'minion',
+    baseDamage: { physical: 15, chaos: 9 },
+    damageEffectiveness: 0.85,
+    baseCooldown: 2.8,
+    baseCritChance: 0.04,
+    baseProjectiles: 4,
+    baseRadius: 14,
+    baseDuration: 13,
+    timedSummon: true,
+    maxSummons: 20,
+    tags: ['spell', 'minion', 'physical', 'chaos', 'dot'],
   },
   blight_zone: {
     id: 'blight_zone',
@@ -1650,7 +1669,11 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
 
     case 'viper_strike':
       if (r % 2 === 0) return { summary: '+25% Poison Chance, +20% DoT Damage, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.25 }, { stat: 'dotDamage', kind: 'inc', value: 0.2 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
-      return { summary: '+18% Attack Speed, +15% Area, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+18% Attack Speed, +15% Reach/Area, +12% More Damage', mods: [{ stat: 'attackSpeed', kind: 'inc', value: 0.18 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+
+    case 'shambling_horde':
+      if (r === 2 || r === 5 || r === 8) return { summary: '+1 Zombie, +15% Duration, +10% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'projectileDuration', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
+      return { summary: '+20% Poison Chance, +15% Cast & Attack Speed, +10% More Damage', mods: [{ stat: 'poisonChance', kind: 'flat', value: 0.2 }, { stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'attackSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.1 }] };
 
     default:
       return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };

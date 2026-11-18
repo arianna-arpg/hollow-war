@@ -261,8 +261,26 @@ describe('Hollow War Combat SDK', () => {
     const engine = new HollowWarEngine();
     engine.startRun('warrior');
     engine.openDraft();
-    engine.setDraftArchetype('cold');
-    expect(engine.draftArchetype).toBe('cold');
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'art_arch_fire',
+          name: 'Art: Fire',
+          category: 'art_archetype',
+          rarity: 'rare',
+          archetype: 'fire',
+          description: 'Choose a Fire Art.',
+          tags: ['fire'],
+        },
+        summaryText: 'Art Tome',
+      },
+    ];
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('art_select');
+    expect(engine.artSelectChoice!.options.length).toBeGreaterThanOrEqual(1);
+    expect(engine.artSelectChoice!.options.every((o) => o.artDef.tags.includes('fire'))).toBe(true);
+    engine.backFromArtSelect();
+    expect(engine.phase).toBe('draft');
 
     // Warrior starts with Cleave: verify deep Attack/Strike Inscription coverage
     const cleave = engine.arts.find((a) => a.artId === 'cleave')!;
@@ -312,5 +330,44 @@ describe('Hollow War Combat SDK', () => {
     expect(spawned.length).toBe(3);
     expect(spawned[0].temporary).toBe(true);
     expect(spawned[0].life).toBeGreaterThan(8);
+  });
+
+  it('supports Shambling Horde zombies, Viper Strike thrust, and expanding Blighted Ground', () => {
+    expect(ARTS.viper_strike.behavior).toBe('thrust');
+    expect(ARTS.shambling_horde.behavior).toBe('minion');
+
+    const engine = new HollowWarEngine();
+    engine.startRun('necromancer');
+    for (const id of ['shambling_horde', 'blight_zone', 'viper_strike']) {
+      engine.openDraft();
+      engine.draftOptions = [
+        {
+          card: {
+            id: `art_${id}`,
+            name: id,
+            category: 'art',
+            rarity: 'rare',
+            artId: id,
+            description: '',
+            tags: ARTS[id].tags,
+          },
+          summaryText: 'Art',
+        },
+      ];
+      engine.pickDraftOption(0);
+    }
+    engine.setPhase('playing');
+    for (const a of engine.arts) a.cooldownTimer = 0;
+    engine.update(0.05);
+
+    const zombies = engine.minions.filter((m) => m.kind === 'zombie');
+    expect(zombies.length).toBe(4);
+    expect(engine.sweeps.some((s) => s.isThrust)).toBe(true);
+
+    const blight = engine.groundZones.find((gz) => gz.artId === 'blight_zone')!;
+    expect(blight).toBeDefined();
+    const initialR = blight.radius;
+    engine.update(1.0);
+    expect(blight.radius).toBeGreaterThan(initialR);
   });
 });

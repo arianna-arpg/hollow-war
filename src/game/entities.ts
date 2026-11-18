@@ -126,6 +126,7 @@ export interface SweepArc {
   color: string;
   life: number;
   maxLife: number;
+  isThrust?: boolean;
 }
 
 export interface Pickup {
@@ -164,7 +165,7 @@ export interface Particle {
 export interface MinionEntity {
   id: number;
   artId: string;
-  kind: 'skeleton' | 'flame_sprite' | 'bone_golem';
+  kind: 'skeleton' | 'flame_sprite' | 'bone_golem' | 'zombie';
   x: number;
   y: number;
   facing: number;
@@ -210,6 +211,8 @@ export interface GroundZone {
   x: number;
   y: number;
   radius: number;
+  initialRadius?: number;
+  expandToRadius?: number;
   life: number;
   maxLife: number;
   tickTimer: number;

@@ -1,6 +1,6 @@
-import { ARTS, getArtRankStep } from '../content/skills.ts';
+import { ARTS, getArtRankStep, MAX_ACTIVE_ARTS } from '../content/skills.ts';
 import { VESSELS } from '../content/vessels.ts';
-import type { ArtArchetypeFilter, HollowWarEngine } from '../game/engine.ts';
+import type { HollowWarEngine } from '../game/engine.ts';
 import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
 
 export function renderModal(
@@ -121,16 +121,6 @@ export function renderModal(
   }
 
   if (engine.phase === 'draft') {
-    const archetypes: Array<{ id: ArtArchetypeFilter; label: string }> = [
-      { id: 'all', label: 'All' },
-      { id: 'physical', label: 'Physical' },
-      { id: 'fire', label: 'Fire' },
-      { id: 'cold', label: 'Cold' },
-      { id: 'lightning', label: 'Lightning' },
-      { id: 'chaos', label: 'Chaos' },
-      { id: 'attack', label: 'Attack' },
-      { id: 'construct', label: 'Constructs' },
-    ];
     container.innerHTML = `
       <div class="modal-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -142,20 +132,8 @@ export function renderModal(
             </button>
           </div>
         </div>
-        <div class="modal-subtitle" style="margin-bottom:8px">
-          Choose an Art, Inscription, Passive, Conduit, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">
-          <span style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-right:4px">Archetype Focus:</span>
-          ${archetypes
-            .map(
-              (a) => `<button class="btn" data-archetype="${a.id}" style="padding:3px 9px;font-size:11px;${
-                engine.draftArchetype === a.id
-                  ? 'border-color:#fbbf24;background:rgba(251,191,36,0.18);color:#fde68a;font-weight:700;'
-                  : 'opacity:0.78;'
-              }">${a.label}</button>`,
-            )
-            .join('')}
+        <div class="modal-subtitle">
+          Choose an Art Tome, Inscription, Passive, Conduit, or Keystone Oath. DPS deltas are simulated live on your forked StatSheet.
         </div>
         <div class="grid-3">
           ${engine.draftOptions
@@ -164,9 +142,11 @@ export function renderModal(
               const deltaHtml =
                 card.category === 'inscription'
                   ? `<span style="font-size:12px;color:#38bdf8;font-weight:700">Choose from 4 Runes</span>`
-                  : dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
-                    ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
-                    : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
+                  : card.category === 'art_archetype'
+                    ? `<span style="font-size:12px;color:#fbbf24;font-weight:700">Choose from 4 Arts</span>`
+                    : dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
+                      ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
+                      : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
 
               const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
               const currentStacks = engine.acquiredCards.get(card.id) ?? 0;
@@ -203,7 +183,7 @@ export function renderModal(
                   </div>
                   <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
                     ${deltaHtml}
-                    <span style="font-size:12px;font-weight:700;color:#fbbf24">${card.category === 'inscription' ? 'Select Rune →' : 'Claim →'}</span>
+                    <span style="font-size:12px;font-weight:700;color:#fbbf24">${card.category === 'inscription' ? 'Select Rune →' : card.category === 'art_archetype' ? 'Select Art →' : 'Claim →'}</span>
                   </div>
                 </div>
               `;
@@ -224,12 +204,69 @@ export function renderModal(
         engine.banishDraftOption(Number(el.dataset.banish));
       });
     });
-    container.querySelectorAll<HTMLElement>('[data-archetype]').forEach((el) => {
+    container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());
+    return;
+  }
+
+  if (engine.phase === 'art_select' && engine.artSelectChoice) {
+    const { label, options } = engine.artSelectChoice;
+    container.innerHTML = `
+      <div class="modal-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="modal-title" style="color:#fbbf24">Select ${label} Art</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btn-art-back">← Back to Draft</button>
+            <button class="btn" id="btn-art-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+              Reroll (${engine.player.rerolls} left)
+            </button>
+          </div>
+        </div>
+        <div class="modal-subtitle">
+          Choose one ${label} Art to learn or deepen in rank.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          ${options
+            .map(({ artDef, isRankUp, nextRank, dpsDeltaPct }) => {
+              const deltaHtml =
+                Math.abs(dpsDeltaPct) >= 0.5
+                  ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Total DPS</span>`
+                  : `<span style="font-size:12px;color:#94a3b8">New Tool</span>`;
+              return `
+                <div class="choice-card" data-art-pick="${artDef.id}" style="border-color:${artDef.color}66">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                      <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:${artDef.color}">${isRankUp ? `Rank ${nextRank - 1} → ${nextRank}` : `New Art (${engine.arts.length}/${MAX_ACTIVE_ARTS})`}</span>
+                    </div>
+                    <div style="font-size:16px;font-weight:800;margin-bottom:8px;color:${artDef.color}">${artDef.name}</div>
+                    <div style="font-size:12px;color:#cbd5e1;line-height:1.45;margin-bottom:8px">${artDef.description}</div>
+                    ${
+                      isRankUp
+                        ? `<div style="font-size:11px;color:#fbbf24;margin-bottom:10px">${getArtRankStep(artDef.id, nextRank).summary}</div>`
+                        : ''
+                    }
+                    <div class="tag-row">
+                      ${artDef.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                    ${deltaHtml}
+                    <span style="font-size:12px;font-weight:700;color:${artDef.color}">${isRankUp ? 'Deepen →' : 'Learn →'}</span>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll<HTMLElement>('[data-art-pick]').forEach((el) => {
       el.addEventListener('click', () => {
-        engine.setDraftArchetype(el.dataset.archetype as ArtArchetypeFilter);
+        engine.pickArtChoice(el.dataset.artPick!);
       });
     });
-    container.querySelector('#btn-reroll')?.addEventListener('click', () => engine.rerollDraft());
+    container.querySelector('#btn-art-back')?.addEventListener('click', () => engine.backFromArtSelect());
+    container.querySelector('#btn-art-reroll')?.addEventListener('click', () => engine.rerollArtSelect());
     return;
   }
 

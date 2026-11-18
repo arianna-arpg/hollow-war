@@ -146,14 +146,52 @@ body,
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 8px 12px;
+  pointer-events: auto;
 }
 
 .skill-slot {
-  min-width: 125px;
+  position: relative;
+  min-width: 135px;
   padding: 6px 10px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.16);
+  cursor: help;
+}
+
+.hw-tooltip-wrap {
+  position: relative;
+}
+
+.hw-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  background: rgba(10, 14, 23, 0.98);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #e2e8f0;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.75);
+  z-index: 60;
+  pointer-events: none;
+}
+
+.hw-tooltip.hw-tooltip-down {
+  bottom: auto;
+  top: calc(100% + 8px);
+  left: 0;
+  transform: none;
+}
+
+.hw-tooltip-wrap:hover > .hw-tooltip,
+.skill-slot:hover > .hw-tooltip {
+  display: block;
 }
 
 .skill-slot-header {

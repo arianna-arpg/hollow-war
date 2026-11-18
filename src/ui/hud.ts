@@ -1,14 +1,65 @@
 import { ARTS } from '../content/skills.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 
+let lastHotbarKey = '';
+
+function buildHotbarHtml(engine: HollowWarEngine): string {
+  return engine.arts
+    .map((ar) => {
+      const def = ARTS[ar.artId];
+      const preview = engine.getArtPreview(ar);
+      const insTooltip =
+        ar.inscriptions.length > 0
+          ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(148,163,184,0.2)">
+              ${ar.inscriptions
+                .map(
+                  (ins) =>
+                    `<div style="margin-bottom:4px"><strong style="color:${ins.color}">${ins.name}:</strong> <span style="color:#cbd5e1">${ins.description}</span></div>`,
+                )
+                .join('')}
+            </div>`
+          : '';
+
+      return `
+        <div class="skill-slot" style="border-color:${def.color}55">
+          <div class="skill-slot-header">
+            <span style="color:${def.color}">${def.name}</span>
+            <span>Rank ${ar.level}</span>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">
+            ${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}% Crit
+          </div>
+          <div class="support-pips">
+            ${ar.inscriptions
+              .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
+              .join('')}
+          </div>
+          <div class="hw-tooltip">
+            <div style="font-weight:800;color:${def.color};margin-bottom:3px">${def.name} (Rank ${ar.level})</div>
+            <div style="color:#cbd5e1;margin-bottom:6px">${def.description}</div>
+            <div class="tag-row" style="margin-bottom:4px">
+              ${def.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
+            </div>
+            <div style="font-size:11px;color:#94a3b8">
+              Avg Hit: ${preview.avgHit.toFixed(1)} · ${preview.castsPerSecond.toFixed(2)}/s · Crit ${(preview.critChance * 100).toFixed(0)}% (x${preview.critMulti.toFixed(2)})
+            </div>
+            ${insTooltip}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
 export function renderHud(
   container: HTMLElement,
   engine: HollowWarEngine,
   onToggleInspector: () => void,
   onToggleAutoAim: () => void,
 ): void {
-  if (engine.phase === 'vessel_select') {
+  if (engine.phase === 'vessel_select' || engine.phase === 'archive') {
     container.innerHTML = '';
+    lastHotbarKey = '';
     return;
   }
 
@@ -24,82 +75,74 @@ export function renderHud(
     .padStart(2, '0');
   const estDps = Math.round(engine.getTotalEstimatedDps());
 
-  container.innerHTML = `
-    <div class="hud-top">
-      <div class="hud-vitals">
-        <div class="bar-row">
-          <div class="bar-label">
-            <span>LIFE</span>
-            <span>${Math.ceil(engine.player.life)} / ${Math.round(maxLife)}</span>
-          </div>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:${lifePct}%;background:#ef4444"></div>
-          </div>
+  const hotbarKey = `${engine.sheet.revision}|${engine.arts.map((a) => `${a.artId}:${a.level}:${a.inscriptions.map((i) => i.id).join(',')}`).join(';')}`;
+
+  const topHtml = `
+    <div class="hud-vitals">
+      <div class="bar-row">
+        <div class="bar-label">
+          <span>LIFE</span>
+          <span>${Math.ceil(engine.player.life)} / ${Math.round(maxLife)}</span>
         </div>
-        ${
-          maxWard > 0
-            ? `<div class="bar-row">
-                <div class="bar-label">
-                  <span>WARD</span>
-                  <span>${Math.ceil(engine.player.ward)} / ${Math.round(maxWard)}</span>
-                </div>
-                <div class="bar-track">
-                  <div class="bar-fill" style="width:${wardPct}%;background:#38bdf8"></div>
-                </div>
-              </div>`
-            : ''
-        }
-        <div class="bar-row" style="margin-bottom:0">
-          <div class="bar-label">
-            <span>LVL ${engine.player.level} · ESSENCE</span>
-            <span>${Math.floor(engine.player.xp)} / ${engine.player.xpToNext}</span>
-          </div>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:${xpPct}%;background:#f59e0b"></div>
-          </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${lifePct}%;background:#ef4444"></div>
         </div>
       </div>
-
-      <div class="hud-center-stats">
-        <div class="stat-chip">TIME <strong>${mins}:${secs}</strong></div>
-        <div class="stat-chip">SLAIN <strong>${engine.kills}</strong></div>
-        <div class="stat-chip">EST. DPS <strong>${estDps}</strong></div>
-        <div class="stat-chip">[SPACE] ${engine.vessel.ultimate.name.toUpperCase()} <strong>${engine.player.ultimateCooldown <= 0 ? 'READY' : engine.player.ultimateCooldown.toFixed(1) + 's'}</strong></div>
-      </div>
-
-      <div class="hud-actions">
-        <button class="btn" id="btn-auto-aim">[Q] Aim: ${engine.autoAim ? 'AUTO' : 'MOUSE'}</button>
-        <button class="btn btn-primary" id="btn-inspector">[TAB] Build & Arts</button>
+      ${
+        maxWard > 0
+          ? `<div class="bar-row">
+              <div class="bar-label">
+                <span>WARD</span>
+                <span>${Math.ceil(engine.player.ward)} / ${Math.round(maxWard)}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${wardPct}%;background:#38bdf8"></div>
+              </div>
+            </div>`
+          : ''
+      }
+      <div class="bar-row" style="margin-bottom:0">
+        <div class="bar-label">
+          <span>LVL ${engine.player.level} · ESSENCE</span>
+          <span>${Math.floor(engine.player.xp)} / ${engine.player.xpToNext}</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${xpPct}%;background:#f59e0b"></div>
+        </div>
       </div>
     </div>
 
-    <div class="hud-bottom">
-      <div class="skill-rack">
-        ${engine.arts
-          .map((ar) => {
-            const def = ARTS[ar.artId];
-            const preview = engine.getArtPreview(ar);
-            return `
-              <div class="skill-slot" style="border-color:${def.color}55">
-                <div class="skill-slot-header">
-                  <span style="color:${def.color}">${def.name}</span>
-                  <span>Rank ${ar.level}</span>
-                </div>
-                <div style="font-size:11px;color:#94a3b8;margin-top:2px">
-                  ${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}% Crit
-                </div>
-                <div class="support-pips">
-                  ${ar.inscriptions
-                    .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
-                    .join('')}
-                </div>
-              </div>
-            `;
-          })
-          .join('')}
-      </div>
+    <div class="hud-center-stats">
+      <div class="stat-chip">TIME <strong>${mins}:${secs}</strong></div>
+      <div class="stat-chip">SLAIN <strong>${engine.kills}</strong></div>
+      <div class="stat-chip">EST. DPS <strong>${estDps}</strong></div>
+      <div class="stat-chip">[SPACE] ${engine.vessel.ultimate.name.toUpperCase()} <strong>${engine.player.ultimateCooldown <= 0 ? 'READY' : engine.player.ultimateCooldown.toFixed(1) + 's'}</strong></div>
+    </div>
+
+    <div class="hud-actions">
+      <button class="btn" id="btn-auto-aim">[Q] Aim: ${engine.autoAim ? 'AUTO' : 'MOUSE'}</button>
+      <button class="btn btn-primary" id="btn-inspector">[TAB] Build & Arts</button>
     </div>
   `;
+
+  const existingTop = container.querySelector('.hud-top');
+  const existingRack = container.querySelector('.skill-rack');
+
+  if (!existingTop || !existingRack) {
+    container.innerHTML = `
+      <div class="hud-top">${topHtml}</div>
+      <div class="hud-bottom">
+        <div class="skill-rack">${buildHotbarHtml(engine)}</div>
+      </div>
+    `;
+    lastHotbarKey = hotbarKey;
+  } else {
+    existingTop.innerHTML = topHtml;
+    if (hotbarKey !== lastHotbarKey) {
+      existingRack.innerHTML = buildHotbarHtml(engine);
+      lastHotbarKey = hotbarKey;
+    }
+  }
 
   container.querySelector('#btn-inspector')?.addEventListener('click', onToggleInspector);
   container.querySelector('#btn-auto-aim')?.addEventListener('click', onToggleAutoAim);

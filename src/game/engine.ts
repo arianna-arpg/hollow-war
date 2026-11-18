@@ -557,11 +557,11 @@ export class HollowWarEngine {
     if (def.behavior === 'projectile') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
       const pierce =
-        (def.id === 'void_orb' ? 3 : 0) +
+        (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
       const areaScale = this.sheet.get('area', def.tags, extraMods);
       const speed = def.projectileSpeed ?? 520;
-      const spreadStep = count > 1 ? 0.14 : 0;
+      const spreadStep = count > 1 ? (def.homing ? 0.34 : 0.14) : 0;
       const startAngle = this.player.aimAngle - ((count - 1) * spreadStep) / 2;
 
       for (let i = 0; i < count; i++) {
@@ -578,6 +578,9 @@ export class HollowWarEngine {
           pierceLeft: pierce,
           life: 1.8,
           hitIds: new Set(),
+          homing: def.homing,
+          explodeRadius: def.explodeRadius ? def.explodeRadius * areaScale : undefined,
+          explodeScale: def.explodeScale,
           extraMods,
         });
       }
@@ -1116,9 +1119,15 @@ export class HollowWarEngine {
         }
         if (nearest) {
           const speed = Math.hypot(p.vx, p.vy);
+          const curAngle = Math.atan2(p.vy, p.vx);
           const desired = Math.atan2(nearest.y - p.y, nearest.x - p.x);
-          p.vx = Math.cos(desired) * speed;
-          p.vy = Math.sin(desired) * speed;
+          let diff = desired - curAngle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const maxTurn = 3.6 * dt;
+          const nextAngle = curAngle + Math.max(-maxTurn, Math.min(maxTurn, diff));
+          p.vx = Math.cos(nextAngle) * speed;
+          p.vy = Math.sin(nextAngle) * speed;
         }
       }
 
@@ -1143,7 +1152,29 @@ export class HollowWarEngine {
         if (e.life <= 0 || p.hitIds.has(e.id)) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= p.radius + e.radius) {
           p.hitIds.add(e.id);
-          this.applyArtHit(e, def, p.extraMods ?? (art ? this.getArtExtraMods(art) : []), art);
+          const mods = p.extraMods ?? (art ? this.getArtExtraMods(art) : []);
+          this.applyArtHit(e, def, mods, art);
+
+          if (p.explodeRadius && p.explodeRadius > 0) {
+            this.novas.push({
+              x: p.x,
+              y: p.y,
+              radius: 8,
+              maxRadius: p.explodeRadius,
+              color: p.color,
+              life: 0.22,
+              maxLife: 0.22,
+            });
+            const scale = p.explodeScale ?? 0.6;
+            const splashMods: Modifier[] = [...mods, { stat: 'damage', kind: 'more', value: scale - 1 }];
+            for (const other of this.enemies) {
+              if (other.id === e.id || other.life <= 0) continue;
+              if (Math.hypot(other.x - p.x, other.y - p.y) <= p.explodeRadius + other.radius) {
+                this.applyArtHit(other, def, splashMods, art);
+              }
+            }
+          }
+
           if (p.pierceLeft > 0) {
             p.pierceLeft -= 1;
           } else {

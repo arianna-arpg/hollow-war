@@ -1,7 +1,65 @@
 import { ARTS } from '../content/skills.ts';
-import { VESSELS } from '../content/vessels.ts';
+import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
+import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
 import type { HollowWarEngine } from '../game/engine.ts';
 import { ARCHIVE_NODES, buyArchiveNode, getNodeCost } from '../meta/archive.ts';
+import type { ConditionId, Modifier } from '../sdk/types.ts';
+
+function formatConditionLabel(when: ConditionId): string {
+  switch (when) {
+    case 'lowLife':
+      return 'on Low Life (≤40%)';
+    case 'fullLife':
+      return 'on Full Life';
+    case 'warded':
+      return 'while Warded';
+    case 'wardBroken':
+      return 'while Ward is Broken';
+    case 'moving':
+      return 'while Moving';
+    case 'stationary':
+      return 'while Stationary';
+  }
+}
+
+function formatModifier(m: Modifier): string {
+  const rule = HOLLOW_WAR_STAT_RULES.get(m.stat);
+  const label = rule?.label ?? m.stat;
+  const sign = m.value >= 0 ? '+' : '';
+  let valStr: string;
+  if (m.kind === 'inc' || m.kind === 'more' || rule?.percent) {
+    valStr = `${sign}${Math.round(m.value * 100)}%`;
+  } else {
+    valStr = `${sign}${m.value}`;
+  }
+  const kindStr = m.kind === 'more' ? ' More' : m.kind === 'inc' ? ' Increased' : '';
+  const whenStr = m.when ? ` ${formatConditionLabel(m.when)}` : '';
+  return `${valStr}${kindStr} ${label}${whenStr}`;
+}
+
+function renderVesselInnateLines(v: VesselDefinition, activeConds?: Set<ConditionId>): string {
+  const lines: string[] = [];
+  for (const m of v.mods) {
+    let badge = '';
+    if (m.when && activeConds) {
+      const isActive = activeConds.has(m.when);
+      badge = isActive
+        ? ` <span style="color:#4ade80;font-weight:700">[ACTIVE]</span>`
+        : ` <span style="color:#94a3b8">[INACTIVE]</span>`;
+    }
+    lines.push(`<div style="font-size:11px;color:#cbd5e1">• ${formatModifier(m)}${badge}</div>`);
+  }
+  for (const c of v.conversions ?? []) {
+    lines.push(`<div style="font-size:11px;color:#fb923c">• Convert ${Math.round(c.ratio * 100)}% ${c.from} → ${c.to}</div>`);
+  }
+  for (const e of v.extras ?? []) {
+    lines.push(`<div style="font-size:11px;color:#c084fc">• Gain ${Math.round(e.ratio * 100)}% ${e.from} as Extra ${e.to}</div>`);
+  }
+  for (const p of v.procs ?? []) {
+    lines.push(`<div style="font-size:11px;color:#fde047">• ${p.name}: ${p.description}</div>`);
+  }
+  return lines.join('');
+}
 
 export function renderModal(
   container: HTMLElement,
@@ -45,8 +103,9 @@ export function renderModal(
                 <div style="font-size:11px;color:#94a3b8;margin-bottom:8px">
                   Ultimate: <strong style="color:${v.color}">${v.ultimate.name}</strong> — ${v.ultimate.description}
                 </div>
-                <div class="tag-row">
-                  ${v.synergyHints.map((h) => `<span class="tag-pill">${h}</span>`).join('')}
+                <div style="background:rgba(9,11,16,0.55);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:7px 9px;margin-bottom:8px">
+                  <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:4px">Innate Class Passives</div>
+                  ${renderVesselInnateLines(v)}
                 </div>
               </div>
               <button class="btn btn-primary" style="width:100%;margin-top:8px">Enter the Warfront</button>
@@ -251,7 +310,7 @@ export function renderModal(
 
         <div class="inspector-grid">
           <div class="inspector-panel">
-            <h3>Arts & Inscriptions</h3>
+            <h3>Arts & Inscriptions (Hover for Details)</h3>
             ${engine.arts
               .map((ar) => {
                 const def = ARTS[ar.artId];
@@ -261,7 +320,7 @@ export function renderModal(
                   .map(([k, v]) => `${k}: ${v.toFixed(1)}`)
                   .join(' · ');
                 return `
-                  <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(148,163,184,0.12)">
+                  <div class="hw-tooltip-wrap" style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(148,163,184,0.12);cursor:help">
                     <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px">
                       <span style="color:${def.color}">${def.name} (Rank ${ar.level})</span>
                       <span>${Math.round(pv.estimatedDps)} DPS</span>
@@ -275,12 +334,30 @@ export function renderModal(
                         ? `<div class="support-pips">${ar.inscriptions.map((ins) => `<span class="support-pip" style="color:${ins.color}">${ins.name}</span>`).join('')}</div>`
                         : ''
                     }
+                    <div class="hw-tooltip hw-tooltip-down">
+                      <div style="font-weight:800;color:${def.color};margin-bottom:3px">${def.name} (Rank ${ar.level})</div>
+                      <div style="color:#cbd5e1;margin-bottom:6px">${def.description}</div>
+                      <div class="tag-row" style="margin-bottom:4px">
+                        ${def.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
+                      </div>
+                      ${ar.inscriptions
+                        .map(
+                          (ins) =>
+                            `<div style="margin-top:5px;padding-top:5px;border-top:1px solid rgba(148,163,184,0.16)"><strong style="color:${ins.color}">${ins.name}:</strong> ${ins.description}</div>`,
+                        )
+                        .join('')}
+                    </div>
                   </div>
                 `;
               })
               .join('')}
 
-            <h3 style="margin-top:12px">Conversions, Extra & Procs</h3>
+            <h3 style="margin-top:12px">Innate Class Passives (${engine.vessel.name})</h3>
+            <div style="margin-bottom:10px">
+              ${renderVesselInnateLines(engine.vessel, new Set(conds))}
+            </div>
+
+            <h3 style="margin-top:12px">Active Conversions, Extra & Procs</h3>
             ${convs.map((c) => `<div class="stat-line"><span>Convert ${c.from} → ${c.to}</span><span>${(c.ratio * 100).toFixed(0)}%</span></div>`).join('')}
             ${extras.map((e) => `<div class="stat-line"><span>Gain ${e.from} as Extra ${e.to}</span><span>${(e.ratio * 100).toFixed(0)}%</span></div>`).join('')}
             ${procs.map((p) => `<div class="stat-line"><span>Proc [${p.trigger}]: ${p.name}</span><span>${(p.chance * 100).toFixed(0)}% (${p.icd}s ICD)</span></div>`).join('')}

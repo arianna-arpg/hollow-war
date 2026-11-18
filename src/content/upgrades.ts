@@ -361,6 +361,24 @@ export const UPGRADE_POOL: UpgradeCardDef[] = [
     description: 'Etch onto any Art: +18% Fire, Cold & Lightning Penetration, but 15% Less Physical & Chaos Damage.',
     tags: ['fire', 'cold', 'lightning'],
   },
+  {
+    id: 'ins_unbound_reach',
+    name: 'Inscription of Unbound Reach',
+    category: 'inscription',
+    rarity: 'rare',
+    inscriptionId: 'unbound_reach',
+    description: 'Etch onto an Area Art: +40% Increased Area of Effect, at the cost of 15% Less Area Damage.',
+    tags: ['aoe'],
+  },
+  {
+    id: 'ins_focused_ruin',
+    name: 'Inscription of Focused Ruin',
+    category: 'inscription',
+    rarity: 'rare',
+    inscriptionId: 'focused_ruin',
+    description: 'Etch onto a Projectile Art: +32% More Projectile Damage, but -20% Area of Effect.',
+    tags: ['projectile'],
+  },
 
   // === DOCTRINES & CONDUITS ===
   {

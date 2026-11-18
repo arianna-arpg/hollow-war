@@ -17,6 +17,10 @@ export interface ArtDefinition extends SkillDamageSpec {
   baseRadius: number;
   projectileSpeed?: number;
   baseChain?: number;
+  basePierce?: number;
+  homing?: boolean;
+  explodeRadius?: number;
+  explodeScale?: number;
   tags: readonly SkillTag[];
 }
 
@@ -64,6 +68,7 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 6,
     projectileSpeed: 640,
+    basePierce: 1,
     tags: ['attack', 'projectile', 'fire', 'physical'],
   },
   frostbolt: {
@@ -147,17 +152,20 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'soul_rend',
     name: 'Soul Rend',
     description:
-      'Releases twin bolts of grave-violet ruin that eat into flesh with chaos and poison.',
+      'Releases homing orbs of grave-violet ruin that curve toward nearby hosts and burst in a chaos splash on impact.',
     color: '#c084fc',
     behavior: 'projectile',
-    baseDamage: { chaos: 22 },
+    baseDamage: { chaos: 20 },
     damageEffectiveness: 1.0,
-    baseCooldown: 0.62,
+    baseCooldown: 0.66,
     baseCritChance: 0.04,
     baseProjectiles: 2,
     baseRadius: 7,
-    projectileSpeed: 500,
-    tags: ['spell', 'projectile', 'chaos'],
+    projectileSpeed: 430,
+    homing: true,
+    explodeRadius: 68,
+    explodeScale: 0.65,
+    tags: ['spell', 'projectile', 'aoe', 'chaos'],
   },
   poison_nova: {
     id: 'poison_nova',
@@ -346,7 +354,7 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'void_orb',
     name: 'Void Orb',
     description:
-      'Looses a slow, heavy sphere of abyssal ruin that pierces through ranks and poisons all it touches.',
+      'Looses a slow, heavy sphere of abyssal ruin that pierces ranks and pulses chaos blasts on each strike.',
     color: '#9333ea',
     behavior: 'projectile',
     baseDamage: { chaos: 28 },
@@ -356,6 +364,9 @@ export const ARTS: Record<string, ArtDefinition> = {
     baseProjectiles: 1,
     baseRadius: 13,
     projectileSpeed: 310,
+    basePierce: 4,
+    explodeRadius: 56,
+    explodeScale: 0.55,
     tags: ['spell', 'projectile', 'aoe', 'chaos'],
   },
 };
@@ -544,6 +555,30 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
       { stat: 'lightningPen', kind: 'flat', value: 0.18 },
       { stat: 'physicalDamage', kind: 'more', value: -0.15 },
       { stat: 'chaosDamage', kind: 'more', value: -0.15 },
+    ],
+  },
+  unbound_reach: {
+    id: 'unbound_reach',
+    name: 'Inscription of Unbound Reach',
+    shortName: 'Unbound Reach',
+    description: 'Unspools the Art across the barrow: +40% Increased Area of Effect, at the cost of 15% Less Area Damage.',
+    color: '#38bdf8',
+    requiredTags: ['aoe'],
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.4 },
+      { stat: 'damage', kind: 'more', value: -0.15, tags: ['aoe'] },
+    ],
+  },
+  focused_ruin: {
+    id: 'focused_ruin',
+    name: 'Inscription of Focused Ruin',
+    shortName: 'Focused Ruin',
+    description: 'Narrows every bolt into a killing point: +32% More Projectile Damage, but -20% Area of Effect.',
+    color: '#f59e0b',
+    requiredTags: ['projectile'],
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.32, tags: ['projectile'] },
+      { stat: 'area', kind: 'inc', value: -0.2 },
     ],
   },
 };

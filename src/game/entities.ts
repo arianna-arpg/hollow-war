@@ -70,6 +70,8 @@ export interface Projectile {
   fromEnemy?: boolean;
   enemyDamage?: number;
   homing?: boolean;
+  explodeRadius?: number;
+  explodeScale?: number;
   extraMods?: Modifier[];
 }
 

@@ -35,6 +35,8 @@ export interface ArtDefinition extends SkillDamageSpec {
   homing?: boolean;
   explodeRadius?: number;
   explodeScale?: number;
+  timedSummon?: boolean;
+  maxSummons?: number;
   sweepProjectiles?: {
     count: number;
     speed: number;
@@ -73,6 +75,10 @@ export interface InscriptionDef {
   strikeWaveCount?: number;
   executeBonus?: number;
   knockbackForce?: number;
+  explodeOnExpire?: number;
+  minionSpeedScale?: number;
+  minionCleaveRadius?: number;
+  trapCountBonus?: number;
 }
 
 export const ARTS: Record<string, ArtDefinition> = {
@@ -330,15 +336,18 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'summon_skeleton',
     name: 'Summon Skeleton Warrior',
     description:
-      'Summons bound Skeletal Warriors from the barrow to hunt nearby foes with iron blades.',
+      'Raises a timed squad of 3 Skeletal Warriors (up to 24 active) from the barrow to hunt nearby foes; Duration and Cast Speed expand your army.',
     color: '#cfc8b8',
     behavior: 'minion',
-    baseDamage: { physical: 20 },
-    damageEffectiveness: 0.9,
-    baseCooldown: 0.85,
-    baseCritChance: 0.05,
-    baseProjectiles: 2,
+    baseDamage: { physical: 26 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 2.2,
+    baseCritChance: 0.06,
+    baseProjectiles: 3,
     baseRadius: 14,
+    baseDuration: 11,
+    timedSummon: true,
+    maxSummons: 24,
     tags: ['spell', 'minion', 'physical'],
   },
   summon_flame_sprite: {
@@ -348,13 +357,13 @@ export const ARTS: Record<string, ArtDefinition> = {
       'Summons living Flame Sprites that hover beside you and cast Firebolts at nearby enemies.',
     color: '#ffb05a',
     behavior: 'minion',
-    baseDamage: { fire: 18 },
-    damageEffectiveness: 0.85,
-    baseCooldown: 0.78,
-    baseCritChance: 0.04,
-    baseProjectiles: 2,
+    baseDamage: { fire: 22 },
+    damageEffectiveness: 0.95,
+    baseCooldown: 0.72,
+    baseCritChance: 0.05,
+    baseProjectiles: 3,
     baseRadius: 10,
-    projectileSpeed: 480,
+    projectileSpeed: 500,
     tags: ['spell', 'minion', 'projectile', 'fire'],
   },
   ballista_sentry: {
@@ -1365,6 +1374,121 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     requiredTags: ['attack', 'aoe'],
     reverseSweep: true,
     mods: [{ stat: 'damage', kind: 'inc', value: 0.15, tags: ['attack'] }],
+  },
+  volatile_thralls: {
+    id: 'volatile_thralls',
+    name: 'Inscription of Minion Instability',
+    shortName: 'Instability',
+    description: 'When a minion expires or is replaced, it detonates in a fiery blast for 90% Art Damage (+15% Area).',
+    color: '#fb923c',
+    requiredTags: ['minion'],
+    explodeOnExpire: 0.9,
+    mods: [{ stat: 'area', kind: 'inc', value: 0.15 }],
+  },
+  swarm_commander: {
+    id: 'swarm_commander',
+    name: 'Inscription of the Endless Tide',
+    shortName: 'Endless Tide',
+    description: '+2 Summons / Minion Count and +25% Minion Duration, at the cost of 15% Less Minion Damage.',
+    color: '#e2e8f0',
+    requiredTags: ['minion'],
+    mods: [
+      { stat: 'projectileCount', kind: 'flat', value: 2 },
+      { stat: 'projectileDuration', kind: 'inc', value: 0.25 },
+      { stat: 'damage', kind: 'more', value: -0.15 },
+    ],
+  },
+  unholy_frenzy: {
+    id: 'unholy_frenzy',
+    name: 'Inscription of Unholy Frenzy',
+    shortName: 'Unholy Frenzy',
+    description: '+40% More Minion Attack & Cast Speed and +35% Minion Move Speed, but 15% Less Minion Damage.',
+    color: '#f87171',
+    requiredTags: ['minion'],
+    minionSpeedScale: 1.35,
+    mods: [
+      { stat: 'attackSpeed', kind: 'more', value: 0.4 },
+      { stat: 'castSpeed', kind: 'more', value: 0.4 },
+      { stat: 'damage', kind: 'more', value: -0.15 },
+    ],
+  },
+  chilling_presence: {
+    id: 'chilling_presence',
+    name: 'Inscription of Gravechill',
+    shortName: 'Gravechill',
+    description: 'Converts 50% of Physical to Cold, granting +35% Chill Chance and +20% Area.',
+    color: '#67e8f9',
+    requiredTags: ['minion'],
+    relevantElements: ['physical', 'cold'],
+    conversions: [{ from: 'physical', to: 'cold', ratio: 0.5 }],
+    mods: [
+      { stat: 'chillChance', kind: 'flat', value: 0.35 },
+      { stat: 'area', kind: 'inc', value: 0.2 },
+    ],
+  },
+  blighted_legion: {
+    id: 'blighted_legion',
+    name: 'Inscription of Blighted Hosts',
+    shortName: 'Blighted Hosts',
+    description: 'Minions gain 25% of Physical as Extra Chaos, +50% Poison Chance, and +30% DoT Damage.',
+    color: '#a855f7',
+    requiredTags: ['minion'],
+    relevantElements: ['physical', 'chaos'],
+    extras: [{ from: 'physical', to: 'chaos', ratio: 0.25 }],
+    mods: [
+      { stat: 'poisonChance', kind: 'flat', value: 0.5 },
+      { stat: 'dotDamage', kind: 'inc', value: 0.3 },
+    ],
+  },
+  cleaving_thralls: {
+    id: 'cleaving_thralls',
+    name: 'Inscription of Sweeping Thralls',
+    shortName: 'Sweeping Thralls',
+    description: 'Minion melee strikes cleave nearby foes in an arc with +35% Area and +20% More Minion Damage.',
+    color: '#fbbf24',
+    requiredTags: ['minion'],
+    minionCleaveRadius: 54,
+    mods: [
+      { stat: 'area', kind: 'inc', value: 0.35 },
+      { stat: 'damage', kind: 'more', value: 0.2 },
+    ],
+  },
+  soul_tether: {
+    id: 'soul_tether',
+    name: 'Inscription of Soul-Tether',
+    shortName: 'Soul-Tether',
+    description: 'Minion hits siphon 3% Life to you and deal +20% More Minion Damage.',
+    color: '#fb7185',
+    requiredTags: ['minion'],
+    mods: [
+      { stat: 'lifeLeech', kind: 'flat', value: 0.03 },
+      { stat: 'damage', kind: 'more', value: 0.2 },
+    ],
+  },
+  clockwork_overdrive: {
+    id: 'clockwork_overdrive',
+    name: 'Inscription of Overdrive',
+    shortName: 'Overdrive',
+    description: 'Totems gain +1 Projectile/Chain and +25% Attack & Cast Speed, but -15% Duration.',
+    color: '#38bdf8',
+    requiredTags: ['totem'],
+    mods: [
+      { stat: 'projectileCount', kind: 'flat', value: 1 },
+      { stat: 'chainCount', kind: 'flat', value: 1 },
+      { stat: 'attackSpeed', kind: 'inc', value: 0.25 },
+      { stat: 'castSpeed', kind: 'inc', value: 0.25 },
+      { stat: 'projectileDuration', kind: 'inc', value: -0.15 },
+    ],
+  },
+  cluster_traps: {
+    id: 'cluster_traps',
+    name: 'Inscription of Cluster Snares',
+    shortName: 'Cluster Snares',
+    description: 'Throws +2 extra traps per cast, at the cost of 20% Less Trap Damage.',
+    color: '#f43f5e',
+    requiredTags: ['trap'],
+    trapCountBonus: 2,
+    mods: [{ stat: 'damage', kind: 'more', value: -0.2 }],
   },
 };
 

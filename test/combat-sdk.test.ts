@@ -274,4 +274,43 @@ describe('Hollow War Combat SDK', () => {
     expect(compatible).toContain('phantom_reach');
     expect(compatible.length).toBeGreaterThanOrEqual(10);
   });
+
+  it('supports timed Skeleton swarms, Minion Instability, and deep Minion Inscriptions', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('necromancer');
+    engine.openDraft();
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'art_summon_skeleton',
+          name: 'Art: Summon Skeleton Warrior',
+          category: 'art',
+          rarity: 'rare',
+          artId: 'summon_skeleton',
+          description: '',
+          tags: ['spell', 'minion', 'physical'],
+        },
+        summaryText: 'Art',
+      },
+    ];
+    engine.pickDraftOption(0);
+    engine.setPhase('playing');
+
+    const skelArt = engine.arts.find((a) => a.artId === 'summon_skeleton')!;
+    const compatible = engine.getCompatibleInscriptions(skelArt).map((i) => i.id);
+    expect(compatible).toContain('volatile_thralls');
+    expect(compatible).toContain('swarm_commander');
+    expect(compatible).toContain('unholy_frenzy');
+    expect(compatible).toContain('cleaving_thralls');
+    expect(compatible).toContain('soul_tether');
+    expect(compatible.length).toBeGreaterThanOrEqual(10);
+
+    // Casting Summon Skeleton spawns 3 timed skeletons when cooldown completes
+    skelArt.cooldownTimer = 0;
+    engine.update(0.05);
+    const spawned = engine.minions.filter((m) => m.artId === 'summon_skeleton');
+    expect(spawned.length).toBe(3);
+    expect(spawned[0].temporary).toBe(true);
+    expect(spawned[0].life).toBeGreaterThan(8);
+  });
 });

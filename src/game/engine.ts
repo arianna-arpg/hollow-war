@@ -531,7 +531,7 @@ export class HollowWarEngine {
         continue;
       }
 
-      if (def.behavior === 'minion') {
+      if (def.behavior === 'minion' && !def.timedSummon) {
         this.syncMinionRoster(art, def);
         continue;
       }
@@ -997,29 +997,66 @@ export class HollowWarEngine {
           });
         }
       }
+    } else if (def.behavior === 'minion' && def.timedSummon) {
+      const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
+      const durScale = Math.max(0.25, this.sheet.get('projectileDuration', def.tags, extraMods));
+      const life = (def.baseDuration ?? 11) * durScale;
+      const maxCap = def.maxSummons ?? 24;
+      const explodeScale = art.inscriptions.reduce((s, i) => s + (i.explodeOnExpire ?? 0), 0);
+
+      for (let k = 0; k < count; k++) {
+        const activeOwned = this.minions.filter((m) => m.artId === def.id);
+        if (activeOwned.length >= maxCap) {
+          const oldest = activeOwned[0];
+          const idx = this.minions.indexOf(oldest);
+          if (idx >= 0) {
+            if (explodeScale > 0) this.detonateMinion(oldest, def, extraMods, art, explodeScale);
+            this.minions.splice(idx, 1);
+          }
+        }
+        const a = this.player.aimAngle + ((k - (count - 1) / 2) * 0.55) + (Math.random() - 0.5) * 0.25;
+        this.minions.push({
+          id: nextEntityId++,
+          artId: def.id,
+          kind: 'skeleton',
+          x: this.player.x + Math.cos(a) * 44,
+          y: this.player.y + Math.sin(a) * 44,
+          facing: a,
+          attackTimer: 0.18,
+          temporary: true,
+          life,
+        });
+      }
     } else if (def.behavior === 'totem') {
       if (this.totems.length >= 3) this.totems.shift();
+      const durScale = Math.max(0.25, this.sheet.get('projectileDuration', def.tags, extraMods));
+      const life = 8.5 * durScale;
       this.totems.push({
         id: nextEntityId++,
         artId: def.id,
         x: this.player.x + Math.cos(this.player.aimAngle) * 42,
         y: this.player.y + Math.sin(this.player.aimAngle) * 42,
-        life: 8.5,
-        maxLife: 8.5,
+        life,
+        maxLife: life,
         fireTimer: 0.2,
       });
     } else if (def.behavior === 'trap') {
-      if (this.traps.length >= 6) this.traps.shift();
+      const trapBonus = art.inscriptions.reduce((s, i) => s + (i.trapCountBonus ?? 0), 0);
+      const throws = 1 + trapBonus;
+      const maxTraps = 6 + trapBonus * 2;
       const areaScale = this.sheet.get('area', def.tags, extraMods);
-      this.traps.push({
-        id: nextEntityId++,
-        artId: def.id,
-        x: this.player.x + (Math.random() - 0.5) * 46,
-        y: this.player.y + (Math.random() - 0.5) * 46,
-        life: 14,
-        triggerRadius: 38 * Math.sqrt(areaScale),
-        blastRadius: def.baseRadius * areaScale,
-      });
+      for (let t = 0; t < throws; t++) {
+        if (this.traps.length >= maxTraps) this.traps.shift();
+        this.traps.push({
+          id: nextEntityId++,
+          artId: def.id,
+          x: this.player.x + (Math.random() - 0.5) * 64,
+          y: this.player.y + (Math.random() - 0.5) * 64,
+          life: 14,
+          triggerRadius: 38 * Math.sqrt(areaScale),
+          blastRadius: def.baseRadius * areaScale,
+        });
+      }
     }
   }
 
@@ -1050,21 +1087,56 @@ export class HollowWarEngine {
     }
   }
 
+  private detonateMinion(
+    m: MinionEntity,
+    def: ArtDefinition,
+    extraMods: Modifier[],
+    art: EquippedArt | undefined,
+    scale: number,
+  ): void {
+    const radius = 64 * this.sheet.get('area', def.tags, extraMods);
+    this.novas.push({
+      x: m.x,
+      y: m.y,
+      radius: 10,
+      maxRadius: radius,
+      color: '#fb923c',
+      life: 0.24,
+      maxLife: 0.24,
+    });
+    const blastSpec: SkillDamageSpec = {
+      ...def,
+      damageEffectiveness: (def.damageEffectiveness ?? 1) * scale,
+      tags: [...def.tags, 'aoe'],
+    };
+    for (const e of this.enemies) {
+      if (e.life <= 0) continue;
+      if (Math.hypot(e.x - m.x, e.y - m.y) <= radius + e.radius) {
+        this.applyArtHit(e, blastSpec, extraMods, art);
+      }
+    }
+  }
+
   private updateMinions(dt: number): void {
     for (let i = this.minions.length - 1; i >= 0; i--) {
       const m = this.minions[i];
+      const art = this.arts.find((a) => a.artId === m.artId);
+      const def = ARTS[m.artId];
+      const extraMods = art ? this.getArtExtraMods(art) : [];
+
       if (m.temporary && m.life !== undefined) {
         m.life -= dt;
         if (m.life <= 0) {
+          const explodeScale = art ? art.inscriptions.reduce((s, ins) => s + (ins.explodeOnExpire ?? 0), 0) : 0;
+          if (explodeScale > 0 && def) {
+            this.detonateMinion(m, def, extraMods, art, explodeScale);
+          }
           this.minions.splice(i, 1);
           continue;
         }
       }
-      const art = this.arts.find((a) => a.artId === m.artId);
-      const def = ARTS[m.artId];
       if (!def) continue;
       if (!art && !m.temporary) continue;
-      const extraMods = art ? this.getArtExtraMods(art) : [];
 
       if (m.attackTimer > 0) m.attackTimer -= dt;
 
@@ -1081,11 +1153,13 @@ export class HollowWarEngine {
       }
 
       if (m.kind === 'skeleton' || m.kind === 'bone_golem') {
+        const speedMult = art ? art.inscriptions.reduce((s, ins) => s * (ins.minionSpeedScale ?? 1), 1) : 1;
+        const cleaveBase = art ? art.inscriptions.reduce((s, ins) => s + (ins.minionCleaveRadius ?? 0), 0) : 0;
         if (nearest) {
           const dx = nearest.x - m.x;
           const dy = nearest.y - m.y;
           m.facing = Math.atan2(dy, dx);
-          const moveSpd = m.kind === 'bone_golem' ? 165 : 195;
+          const moveSpd = (m.kind === 'bone_golem' ? 165 : 205) * speedMult;
           const reach = m.kind === 'bone_golem' ? 28 : 18;
           if (bestDist > nearest.radius + reach) {
             m.x += (dx / bestDist) * moveSpd * dt;
@@ -1094,10 +1168,27 @@ export class HollowWarEngine {
             const spd = Math.max(0.2, this.sheet.get('attackSpeed', def.tags, extraMods));
             m.attackTimer = def.baseCooldown / spd;
             if (m.kind === 'bone_golem') {
-              const slamR = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
+              const slamR = (def.baseRadius + cleaveBase * 0.5) * this.sheet.get('area', def.tags, extraMods);
               this.novas.push({ x: nearest.x, y: nearest.y, radius: 8, maxRadius: slamR, color: '#d6d3d1', life: 0.24, maxLife: 0.24 });
               for (const e of this.enemies) {
                 if (e.life > 0 && Math.hypot(e.x - nearest.x, e.y - nearest.y) <= slamR + e.radius) {
+                  this.applyArtHit(e, def, extraMods, art);
+                }
+              }
+            } else if (cleaveBase > 0) {
+              const cleaveR = cleaveBase * this.sheet.get('area', def.tags, extraMods);
+              this.sweeps.push({
+                x: m.x,
+                y: m.y,
+                angle: m.facing,
+                radius: cleaveR,
+                arcSpread: Math.PI * 0.75,
+                color: '#fbbf24',
+                life: 0.16,
+                maxLife: 0.16,
+              });
+              for (const e of this.enemies) {
+                if (e.life > 0 && Math.hypot(e.x - nearest.x, e.y - nearest.y) <= cleaveR + e.radius) {
                   this.applyArtHit(e, def, extraMods, art);
                 }
               }
@@ -1112,8 +1203,8 @@ export class HollowWarEngine {
           const dist = Math.hypot(dx, dy);
           if (dist > 64) {
             m.facing = Math.atan2(dy, dx);
-            m.x += (dx / dist) * 210 * dt;
-            m.y += (dy / dist) * 210 * dt;
+            m.x += (dx / dist) * 215 * speedMult * dt;
+            m.y += (dy / dist) * 215 * speedMult * dt;
           }
         }
       } else {

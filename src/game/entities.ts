@@ -19,6 +19,7 @@ export interface AilmentStack {
 export type EnemyFaction = 'undead' | 'demon';
 
 export type EnemyArchetype =
+  | 'zombie'
   | 'ghoul'
   | 'skeleton_warrior'
   | 'skeleton_archer'
@@ -30,8 +31,10 @@ export type EnemyArchetype =
   | 'gravemaw'
   | 'revenant_knight'
   | 'imp'
+  | 'ash_whelp'
   | 'hellhound'
   | 'demon_brute'
+  | 'abyssal_foldwright'
   | 'lich'
   | 'demon_lord';
 
@@ -59,6 +62,8 @@ export interface Enemy {
   ailments: AilmentStack[];
   abilityTimer: number;
   orbitHitCooldown: number;
+  /** Used for sweeping Wraith walls that travel in a fixed line across the arena */
+  fixedVelocity?: { vx: number; vy: number; life: number };
 }
 
 export interface Projectile {
@@ -231,4 +236,14 @@ export interface ActiveUltEffect {
   life: number;
   maxLife: number;
   tickTimer: number;
+}
+
+export interface EnemyHazardZone {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  timer: number;
+  maxTimer: number;
+  damage: number;
 }

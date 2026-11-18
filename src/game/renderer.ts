@@ -76,6 +76,30 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
   ctx.rotate(e.facing);
 
   switch (e.archetype) {
+    case 'zombie': {
+      // Slow, shambling corpse: pale-greenish body, outstretched arms
+      ctx.fillStyle = baseColor;
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = 3;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(r * 0.3, s * r * 0.52);
+        ctx.lineTo(r * 0.95, s * r * 0.42);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#090b10';
+      ctx.beginPath();
+      ctx.arc(r * 0.45, -r * 0.18, 1.8, 0, Math.PI * 2);
+      ctx.arc(r * 0.45, r * 0.18, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'ghoul': {
       // Hunched ragged corpse with claws and maw
       ctx.fillStyle = baseColor;
@@ -317,6 +341,41 @@ function drawEnemyLook(ctx: CanvasRenderingContext2D, e: Enemy, elapsed: number)
       ctx.fill();
       break;
     }
+    case 'ash_whelp': {
+      ctx.fillStyle = flash ? '#ffffff' : 'rgba(251, 146, 60, 0.35)';
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
+      ctx.fill();
+      drawHorns(ctx, r * 0.65, '#431407');
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(r * 0.32, -r * 0.16, 2.1, 0, Math.PI * 2);
+      ctx.arc(r * 0.32, r * 0.16, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'abyssal_foldwright': {
+      ctx.fillStyle = baseColor;
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(r * 1.05, 0);
+      ctx.lineTo(0, r * 0.78);
+      ctx.lineTo(-r * 0.95, 0);
+      ctx.lineTo(0, -r * 0.78);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e0f2fe';
+      ctx.beginPath();
+      ctx.arc(r * 0.35, 0, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'hellhound': {
       // Ember-pelted hound + barbed tail + live flame glow
       ctx.fillStyle = flash ? '#ffffff' : 'rgba(249, 115, 22, 0.32)';
@@ -546,6 +605,30 @@ export function renderGame(
     ctx.beginPath();
     ctx.arc(0, 0, gz.radius * 0.72, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  // Telegraphed Enemy Mortar / Hazard Zones
+  for (const hz of engine.enemyHazards) {
+    const progress = 1 - Math.max(0, hz.timer / hz.maxTimer);
+    ctx.save();
+    ctx.translate(hz.x, hz.y);
+    ctx.fillStyle = 'rgba(255, 42, 85, 0.16)';
+    ctx.beginPath();
+    ctx.arc(0, 0, hz.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ff2a55';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, hz.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Expanding inner fuse ring showing exact detonation timing
+    ctx.fillStyle = 'rgba(255, 42, 85, 0.28)';
+    ctx.beginPath();
+    ctx.arc(0, 0, hz.radius * progress, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

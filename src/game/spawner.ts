@@ -17,6 +17,32 @@ export function createEnemy(
 
   switch (archetype) {
     // === UNDEAD FACTION ===
+    case 'zombie':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'undead',
+        isBoss: false,
+        name: 'Risen Zombie',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 14,
+        life: 38 * hpScale,
+        maxLife: 38 * hpScale,
+        speed: 56 + Math.min(20, elapsedSeconds * 0.08),
+        damage: 11 * (1 + elapsedSeconds / 150),
+        xpValue: 10,
+        armor: 4,
+        resistances: { chaos: 0.2 },
+        color: '#7f8c72',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      };
     case 'ghoul':
       return {
         id: nextEnemyId++,
@@ -29,15 +55,15 @@ export function createEnemy(
         vx: 0,
         vy: 0,
         facing: 0,
-        radius: 13,
-        life: 30 * hpScale,
-        maxLife: 30 * hpScale,
-        speed: 92 + Math.min(35, elapsedSeconds * 0.14),
-        damage: 10 * (1 + elapsedSeconds / 150),
-        xpValue: 10,
-        armor: 3,
-        resistances: { chaos: 0.2 },
-        color: '#8f9887',
+        radius: 12,
+        life: 24 * hpScale,
+        maxLife: 24 * hpScale,
+        speed: 126 + Math.min(40, elapsedSeconds * 0.16),
+        damage: 10 * (1 + elapsedSeconds / 145),
+        xpValue: 12,
+        armor: 2,
+        resistances: { chaos: 0.15 },
+        color: '#a3a895',
         hitFlash: 0,
         ailments: [],
         abilityTimer: 0,
@@ -331,6 +357,58 @@ export function createEnemy(
         abilityTimer: 0,
         orbitHitCooldown: 0,
       };
+    case 'ash_whelp':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'demon',
+        isBoss: false,
+        name: 'Ash Whelp',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 11,
+        life: 28 * hpScale,
+        maxLife: 28 * hpScale,
+        speed: 138 + Math.min(40, elapsedSeconds * 0.16),
+        damage: 15 * (1 + elapsedSeconds / 130),
+        xpValue: 16,
+        armor: 2,
+        resistances: { fire: 0.4 },
+        color: '#fb923c',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.0,
+        orbitHitCooldown: 0,
+      };
+    case 'abyssal_foldwright':
+      return {
+        id: nextEnemyId++,
+        archetype,
+        faction: 'demon',
+        isBoss: false,
+        name: 'Abyssal Foldwright',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 15,
+        life: 68 * hpScale,
+        maxLife: 68 * hpScale,
+        speed: 88,
+        damage: 18 * (1 + elapsedSeconds / 120),
+        xpValue: 30,
+        armor: 10,
+        resistances: { cold: 0.35, chaos: 0.3 },
+        color: '#7795c3',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 2.0,
+        orbitHitCooldown: 0,
+      };
     case 'hellhound':
       return {
         id: nextEnemyId++,
@@ -424,12 +502,15 @@ export function createEnemy(
 export function pickArchetypeForTime(elapsed: number, rng: () => number): EnemyArchetype {
   const r = rng();
   if (elapsed < 90) {
-    return r < 0.58 ? 'ghoul' : 'skeleton_warrior';
+    if (r < 0.48) return 'zombie';
+    if (r < 0.78) return 'ghoul';
+    return 'skeleton_warrior';
   }
   if (elapsed < 180) {
-    if (r < 0.32) return 'ghoul';
-    if (r < 0.62) return 'skeleton_warrior';
-    if (r < 0.84) return 'wraith';
+    if (r < 0.24) return 'zombie';
+    if (r < 0.48) return 'ghoul';
+    if (r < 0.72) return 'skeleton_warrior';
+    if (r < 0.88) return 'wraith';
     return 'gravemaw';
   }
   if (elapsed < 240) {

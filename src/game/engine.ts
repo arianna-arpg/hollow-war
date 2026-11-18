@@ -25,6 +25,8 @@ import type { ConditionId, DamageType, Modifier, ProcSpec, SkillDpsPreview } fro
 import type {
   ActiveUltEffect,
   Enemy,
+  EnemyArchetype,
+  EnemyHazardZone,
   EquippedArt,
   FloatingText,
   GroundZone,
@@ -133,16 +135,20 @@ export class HollowWarEngine {
   pendingEchoes: PendingEcho[] = [];
   pendingProjectiles: PendingProjectile[] = [];
   activeUltEffects: ActiveUltEffect[] = [];
+  enemyHazards: EnemyHazardZone[] = [];
   pickups: Pickup[] = [];
   floatingTexts: FloatingText[] = [];
   particles: Particle[] = [];
 
   draftOptions: DraftOption[] = [];
   inscribeChoice: InscribeChoiceState | null = null;
+  thronelord: { id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string } | null = null;
 
   private spawnTimer = 0;
   private nextBossAt = 60;
-  private nextIncursionAt = 35;
+  private nextIncursionAt = 120;
+  private nextWraithWallAt = 150;
+  private thronelordSpawnedAt600 = false;
   private incursionCount = 0;
   private dotAccumulator = 0;
   private viewportW = 1280;
@@ -225,11 +231,13 @@ export class HollowWarEngine {
     this.pendingEchoes = [];
     this.pendingProjectiles = [];
     this.activeUltEffects = [];
+    this.enemyHazards = [];
     this.pickups = [];
     this.floatingTexts = [];
     this.particles = [];
     this.draftOptions = [];
     this.inscribeChoice = null;
+    this.thronelord = null;
 
     this.elapsed = 0;
     this.kills = 0;
@@ -237,14 +245,16 @@ export class HollowWarEngine {
     this.screenShake = 0;
     this.spawnTimer = 0.2;
     this.nextBossAt = 60;
-    this.nextIncursionAt = 35;
+    this.nextIncursionAt = 120;
+    this.nextWraithWallAt = 150;
+    this.thronelordSpawnedAt600 = false;
     this.incursionCount = 0;
     this.dotAccumulator = 0;
 
-    // Opening pack of Undead (Risen Ghouls & Skeleton Warriors)
+    // Opening pack of Undead (Risen Zombies & Skeleton Warriors)
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * Math.PI * 2;
-      const arch = i % 2 === 0 ? 'ghoul' : 'skeleton_warrior';
+      const arch = i % 2 === 0 ? 'zombie' : 'skeleton_warrior';
       this.enemies.push(createEnemy(arch, Math.cos(angle) * 340, Math.sin(angle) * 340, 0));
     }
 
@@ -467,6 +477,8 @@ export class HollowWarEngine {
     this.updatePickups(dt);
     this.updateSpawner(dt);
     this.updateIncursions(dt);
+    this.updateWraithWalls();
+    this.updateEnemyHazards(dt);
     this.updateVfx(dt);
   }
 
@@ -1527,23 +1539,48 @@ export class HollowWarEngine {
       const chilled = e.ailments.some((a) => a.type === 'chill');
       const speed = e.speed * (chilled ? 0.68 : 1);
 
-      const dx = this.player.x - e.x;
-      const dy = this.player.y - e.y;
-      const dist = Math.max(1, Math.hypot(dx, dy));
-      e.facing = Math.atan2(dy, dx);
+      if (e.fixedVelocity) {
+        e.fixedVelocity.life -= dt;
+        if (e.fixedVelocity.life <= 0) {
+          this.enemies.splice(i, 1);
+          continue;
+        }
+        e.vx = e.fixedVelocity.vx * (chilled ? 0.68 : 1);
+        e.vy = e.fixedVelocity.vy * (chilled ? 0.68 : 1);
+        e.facing = Math.atan2(e.vy, e.vx);
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= e.radius + this.player.radius) {
+          this.damagePlayer(e.damage);
+        }
+        continue;
+      }
+
+      // Interceptors (Hellhound, Blade Wraith) aim ahead of your velocity to cut off circle-strafing
+      const isInterceptor = e.archetype === 'hellhound' || e.archetype === 'blade_wraith';
+      const targetX = isInterceptor ? this.player.x + this.player.vx * 0.55 : this.player.x;
+      const targetY = isInterceptor ? this.player.y + this.player.vy * 0.55 : this.player.y;
+
+      const dx = targetX - e.x;
+      const dy = targetY - e.y;
+      const dist = Math.max(1, Math.hypot(this.player.x - e.x, this.player.y - e.y));
+      const moveDist = Math.max(1, Math.hypot(dx, dy));
+      e.facing = Math.atan2(this.player.y - e.y, this.player.x - e.x);
 
       const isRanged =
         e.archetype === 'skeleton_archer' ||
         e.archetype === 'skeleton_mage' ||
         e.archetype === 'barrow_watchman' ||
-        e.archetype === 'skeletal_mortarman';
+        e.archetype === 'skeletal_mortarman' ||
+        e.archetype === 'abyssal_foldwright' ||
+        e.archetype === 'ash_whelp';
 
       if (isRanged && dist < 260) {
         e.vx = 0;
         e.vy = 0;
       } else {
-        e.vx = (dx / dist) * speed;
-        e.vy = (dy / dist) * speed;
+        e.vx = (dx / moveDist) * speed;
+        e.vy = (dy / moveDist) * speed;
       }
 
       e.x += e.vx * dt;
@@ -1551,9 +1588,38 @@ export class HollowWarEngine {
 
       if (isRanged || e.isBoss) {
         e.abilityTimer -= dt;
-        if (e.abilityTimer <= 0 && dist < 540) {
-          e.abilityTimer = e.isBoss ? (this.elapsed > 480 ? 1.7 : 2.3) : e.archetype === 'skeleton_mage' ? 2.1 : 2.5;
-          const baseAngle = Math.atan2(dy, dx);
+        if (e.abilityTimer <= 0 && dist < 560) {
+          e.abilityTimer = e.isBoss
+            ? this.elapsed > 480
+              ? 1.7
+              : 2.3
+            : e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright'
+              ? 2.0
+              : 2.5;
+
+          // Skeletal Mortarmen & Bosses lob telegraphed Mortar Hazard Zones ahead of the player's movement path
+          if (e.archetype === 'skeletal_mortarman' || (e.isBoss && Math.random() < 0.45)) {
+            const leadX = this.player.x + this.player.vx * 0.85 + (Math.random() - 0.5) * 40;
+            const leadY = this.player.y + this.player.vy * 0.85 + (Math.random() - 0.5) * 40;
+            this.enemyHazards.push({
+              id: nextEntityId++,
+              x: leadX,
+              y: leadY,
+              radius: e.isBoss ? 68 : 54,
+              timer: 1.15,
+              maxTimer: 1.15,
+              damage: e.damage * 1.1,
+            });
+          }
+
+          const projSpeed = e.archetype === 'skeletal_mortarman' ? 195 : e.isBoss ? 255 : 245;
+          // Lead-targeting for Skeleton Mages & Abyssal Foldwrights to punish predictable circle-strafing
+          const usesLead = e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright';
+          const travelT = usesLead ? Math.min(1.2, dist / projSpeed) : 0;
+          const aimX = this.player.x + this.player.vx * travelT;
+          const aimY = this.player.y + this.player.vy * travelT;
+          const baseAngle = Math.atan2(aimY - e.y, aimX - e.x);
+
           const bolts = e.isBoss
             ? this.elapsed > 540
               ? 12
@@ -1561,13 +1627,12 @@ export class HollowWarEngine {
                 ? 8
                 : 5
             : e.archetype === 'skeletal_mortarman'
-              ? 5
-              : e.archetype === 'skeleton_mage'
+              ? 4
+              : e.archetype === 'skeleton_mage' || e.archetype === 'abyssal_foldwright'
                 ? 3
                 : e.archetype === 'barrow_watchman'
                   ? 2
                   : 1;
-          const projSpeed = e.archetype === 'skeletal_mortarman' ? 195 : e.isBoss ? 255 : 240;
           const spread = e.isBoss && bolts >= 8 ? (Math.PI * 2) / bolts : 0.24;
 
           for (let b = 0; b < bolts; b++) {
@@ -1766,20 +1831,71 @@ export class HollowWarEngine {
     }
   }
 
+  private pickDemonForIncursion(): EnemyArchetype {
+    const r = Math.random();
+    if (!this.thronelord) {
+      if (this.elapsed < 210) return r < 0.6 ? 'imp' : 'hellhound';
+      if (r < 0.35) return 'imp';
+      if (r < 0.62) return 'ash_whelp';
+      if (r < 0.85) return 'hellhound';
+      return 'demon_brute';
+    }
+    switch (this.thronelord.id) {
+      case 'malakor':
+        if (r < 0.38) return 'ash_whelp';
+        if (r < 0.72) return 'hellhound';
+        return 'imp';
+      case 'vexarion':
+        if (r < 0.36) return 'abyssal_foldwright';
+        if (r < 0.72) return 'imp';
+        return 'ash_whelp';
+      case 'karnath':
+        if (r < 0.42) return 'demon_brute';
+        if (r < 0.75) return 'hellhound';
+        return 'imp';
+    }
+  }
+
   private updateIncursions(dt: number): void {
-    if (this.elapsed >= this.nextIncursionAt) {
-      this.nextIncursionAt += 45;
+    // At 5:00 (300s), roll one of the 3 Demon Thronelords for this run
+    if (!this.thronelord && this.elapsed >= 300) {
+      const lords: Array<{ id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string }> = [
+        { id: 'malakor', name: 'Malakor, Thronelord of Ash', title: 'Ash-Host' },
+        { id: 'vexarion', name: 'Vexarion, Thronelord of the Abyss', title: 'Foldwright-Host' },
+        { id: 'karnath', name: 'Karnath, Thronelord of Iron', title: 'Brute-Host' },
+      ];
+      this.thronelord = lords[Math.floor(Math.random() * lords.length)];
+      this.floatingTexts.push({
+        x: this.player.x,
+        y: this.player.y - 46,
+        vy: -16,
+        text: `${this.thronelord.name.toUpperCase()} CLAIMS THE RIFT!`,
+        color: '#f97316',
+        life: 2.5,
+        maxLife: 2.5,
+        scale: 1.25,
+      });
+    }
+
+    // Regular Incursion Portals start at 2:00 (120s), then every 85s; 10:00 (600s) triggers the Thronelord Boss!
+    const triggerMajor600 = !this.thronelordSpawnedAt600 && this.elapsed >= 600;
+    if (triggerMajor600 || this.elapsed >= this.nextIncursionAt) {
+      if (triggerMajor600) {
+        this.thronelordSpawnedAt600 = true;
+      } else {
+        this.nextIncursionAt += 85;
+      }
       this.incursionCount += 1;
-      const isMajor = this.incursionCount % 2 === 0;
+      const isMajor = triggerMajor600;
       const angle = Math.random() * Math.PI * 2;
-      const px = this.player.x + Math.cos(angle) * 280;
-      const py = this.player.y + Math.sin(angle) * 280;
+      const px = this.player.x + Math.cos(angle) * 290;
+      const py = this.player.y + Math.sin(angle) * 290;
       this.incursionPortals.push({
         id: nextEntityId++,
         x: px,
         y: py,
-        life: 11,
-        maxLife: 11,
+        life: isMajor ? 14 : 10,
+        maxLife: isMajor ? 14 : 10,
         spawnTimer: 0.4,
         wavesLeft: isMajor ? 4 : 3,
         isMajor,
@@ -1788,10 +1904,12 @@ export class HollowWarEngine {
         x: this.player.x,
         y: this.player.y - 38,
         vy: -20,
-        text: isMajor ? 'MAJOR DEMONIC INCURSION!' : 'DEMONIC INCURSION PORTAL!',
+        text: isMajor
+          ? `THRONELORD INCURSION: ${this.thronelord?.name ?? 'DEMON LORD'}!`
+          : 'DEMONIC INCURSION PORTAL!',
         color: '#f97316',
-        life: 1.8,
-        maxLife: 1.8,
+        life: 2.0,
+        maxLife: 2.0,
         scale: 1.2,
       });
     }
@@ -1805,22 +1923,23 @@ export class HollowWarEngine {
         portal.spawnTimer = 2.4;
         portal.wavesLeft -= 1;
 
-        const imps = 3 + Math.min(3, Math.floor(this.elapsed / 50));
-        for (let k = 0; k < imps; k++) {
+        const count = 3 + Math.min(3, Math.floor(this.elapsed / 90));
+        for (let k = 0; k < count; k++) {
           const a = Math.random() * Math.PI * 2;
-          const arch = k === 0 && this.elapsed > 45 ? 'demon_brute' : k % 2 === 0 ? 'imp' : 'hellhound';
+          const arch = this.pickDemonForIncursion();
           this.enemies.push(
             createEnemy(arch, portal.x + Math.cos(a) * 26, portal.y + Math.sin(a) * 26, this.elapsed),
           );
         }
 
         if (portal.isMajor && portal.wavesLeft === 0) {
-          this.enemies.push(createEnemy('demon_lord', portal.x, portal.y, this.elapsed));
+          const boss = createEnemy('demon_lord', portal.x, portal.y, this.elapsed);
+          if (this.thronelord) boss.name = this.thronelord.name;
+          this.enemies.push(boss);
         }
       }
 
       if (portal.life <= 0) {
-        // Portal seals and rewards a Lodestone Magnet or Essence cache
         this.pickups.push({
           id: nextEntityId++,
           kind: 'magnet',
@@ -1832,6 +1951,63 @@ export class HollowWarEngine {
           magnetized: false,
         });
         this.incursionPortals.splice(i, 1);
+      }
+    }
+  }
+
+  private updateWraithWalls(): void {
+    if (this.elapsed < this.nextWraithWallAt) return;
+    this.nextWraithWallAt += 70;
+
+    // Spawn a linear band of Grave Wraiths sweeping straight across the arena
+    const horizontal = Math.random() < 0.5;
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const count = 11;
+    const spacing = 46;
+
+    for (let i = 0; i < count; i++) {
+      const offset = (i - (count - 1) / 2) * spacing;
+      const sx = horizontal ? this.player.x - dir * 560 : this.player.x + offset;
+      const sy = horizontal ? this.player.y + offset : this.player.y - dir * 420;
+      const wraith = createEnemy('wraith', sx, sy, this.elapsed);
+      wraith.fixedVelocity = {
+        vx: horizontal ? dir * 165 : 0,
+        vy: horizontal ? 0 : dir * 165,
+        life: 8.5,
+      };
+      this.enemies.push(wraith);
+    }
+
+    this.floatingTexts.push({
+      x: this.player.x,
+      y: this.player.y - 34,
+      vy: -20,
+      text: 'WRAITH PHALANX APPROACHING!',
+      color: '#7dd3fc',
+      life: 1.6,
+      maxLife: 1.6,
+      scale: 1.1,
+    });
+  }
+
+  private updateEnemyHazards(dt: number): void {
+    for (let i = this.enemyHazards.length - 1; i >= 0; i--) {
+      const hz = this.enemyHazards[i];
+      hz.timer -= dt;
+      if (hz.timer <= 0) {
+        this.novas.push({
+          x: hz.x,
+          y: hz.y,
+          radius: 10,
+          maxRadius: hz.radius,
+          color: '#ff2a55',
+          life: 0.25,
+          maxLife: 0.25,
+        });
+        if (Math.hypot(this.player.x - hz.x, this.player.y - hz.y) <= hz.radius + this.player.radius) {
+          this.damagePlayer(hz.damage);
+        }
+        this.enemyHazards.splice(i, 1);
       }
     }
   }

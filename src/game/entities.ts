@@ -91,6 +91,7 @@ export interface Projectile {
   splitOnHit?: number;
   boomerang?: {
     maxLife: number;
+    initialPierce: number;
     returned: boolean;
   };
   spiral?: {
@@ -230,6 +231,7 @@ export interface PendingEcho {
 
 export interface PendingProjectile {
   delay: number;
+  fixedOrigin?: boolean;
   proj: Omit<Projectile, 'id'>;
 }
 

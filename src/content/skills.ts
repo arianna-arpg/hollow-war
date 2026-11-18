@@ -1208,7 +1208,7 @@ export const INSCRIPTIONS: Record<string, InscriptionDef> = {
     id: 'boomerang',
     name: 'Inscription of the Boomerang',
     shortName: 'Boomerang',
-    description: 'Projectiles curve back to you after half their flight, striking foes on the return pass (+20% Range/Duration, 15% Less Damage).',
+    description: 'Projectiles reverse and return to you when reaching range or exhausting pierce, keeping their pierce modifiers on return (+20% Range/Duration, 15% Less Damage).',
     color: '#34d399',
     requiredTags: ['projectile'],
     returnBoomerang: true,

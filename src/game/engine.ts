@@ -762,11 +762,23 @@ export class HollowWarEngine {
       item.delay -= dt;
       if (item.delay <= 0) {
         this.pendingProjectiles.splice(i, 1);
+        const proj = { ...item.proj };
+        if (proj.spiral) {
+          proj.spiral = {
+            ...proj.spiral,
+            originX: this.player.x,
+            originY: this.player.y,
+          };
+          proj.x = this.player.x + Math.cos(proj.spiral.angle) * proj.spiral.radius;
+          proj.y = this.player.y + Math.sin(proj.spiral.angle) * proj.spiral.radius;
+        } else if (!item.fixedOrigin) {
+          const ang = Math.atan2(proj.vy, proj.vx);
+          proj.x = this.player.x + Math.cos(ang) * 16;
+          proj.y = this.player.y + Math.sin(ang) * 16;
+        }
         this.projectiles.push({
           id: nextEntityId++,
-          ...item.proj,
-          x: this.player.x + Math.cos(Math.atan2(item.proj.vy, item.proj.vx)) * 16,
-          y: this.player.y + Math.sin(Math.atan2(item.proj.vy, item.proj.vx)) * 16,
+          ...proj,
           hitIds: new Set(),
         });
       }
@@ -791,17 +803,10 @@ export class HollowWarEngine {
       const pierce =
         (def.basePierce ?? 0) +
         Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-      const areaScale = this.sheet.get('area', def.tags, extraMods);
-      const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
-      const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
+      const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, spreadScale, staggerOverride } =
+        this.getProjTraits(art, def, extraMods);
       const speed = (def.projectileSpeed ?? 520) * speedScale;
       const life = (def.baseDuration ?? 1.6) * durScale;
-
-      const isBoomerang = art.inscriptions.some((i) => i.returnBoomerang);
-      const isHoming = def.homing || art.inscriptions.some((i) => i.forceHoming);
-      const spreadScale = art.inscriptions.reduce((s, i) => s * (i.spreadScale ?? 1), 1);
-      const staggerOverride = art.inscriptions.find((i) => i.staggerOverride !== undefined)?.staggerOverride;
-      const splitOnHit = art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0);
 
       const baseSpread = def.homing ? 0.34 : def.id === 'fan_of_blades' ? 0.22 : 0.14;
       const spreadStep = count > 1 ? baseSpread * spreadScale : 0;
@@ -818,14 +823,14 @@ export class HollowWarEngine {
           radius: def.baseRadius * Math.sqrt(areaScale),
           color: def.color,
           artId: def.id,
-          pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+          pierceLeft: pierce,
           life,
           hitIds: new Set<number>(),
           homing: isHoming,
           explodeRadius: def.explodeRadius ? def.explodeRadius * areaScale : undefined,
           explodeScale: def.explodeScale,
           splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
-          boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
+          boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
           extraMods,
         };
         if (stagger > 0 && i > 0) {
@@ -837,11 +842,13 @@ export class HollowWarEngine {
     } else if (def.behavior === 'spiral') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
       const pierce = (def.basePierce ?? 99) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-      const areaScale = this.sheet.get('area', def.tags, extraMods);
+      const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, staggerOverride } =
+        this.getProjTraits(art, def, extraMods);
+      const life = 2.6 * durScale;
+      const stagger = staggerOverride ?? def.staggerDelay ?? 0;
       for (let i = 0; i < count; i++) {
         const a = this.player.aimAngle + (i / count) * Math.PI * 2;
-        this.projectiles.push({
-          id: nextEntityId++,
+        const projData = {
           x: this.player.x + Math.cos(a) * 18,
           y: this.player.y + Math.sin(a) * 18,
           vx: 0,
@@ -850,18 +857,26 @@ export class HollowWarEngine {
           color: def.color,
           artId: def.id,
           pierceLeft: pierce,
-          life: 2.6,
-          hitIds: new Set(),
+          life,
+          hitIds: new Set<number>(),
+          homing: isHoming,
+          splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
+          boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
           spiral: {
             originX: this.player.x,
             originY: this.player.y,
             angle: a,
-            angularSpeed: 5.2,
+            angularSpeed: 5.2 * speedScale,
             radius: 18,
-            radialSpeed: 105,
+            radialSpeed: 105 * speedScale,
           },
           extraMods,
-        });
+        };
+        if (stagger > 0 && i > 0) {
+          this.pendingProjectiles.push({ delay: i * stagger, proj: projData });
+        } else {
+          this.projectiles.push({ id: nextEntityId++, ...projData });
+        }
       }
     } else if (def.behavior === 'projectile_nova') {
       const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
@@ -882,12 +897,12 @@ export class HollowWarEngine {
           radius: def.baseRadius * Math.sqrt(areaScale),
           color: def.color,
           artId: def.id,
-          pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+          pierceLeft: pierce,
           life,
           hitIds: new Set<number>(),
           homing: isHoming,
           splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
-          boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
+          boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
           extraMods,
         };
         if (stagger > 0 && i > 0) {
@@ -1023,13 +1038,14 @@ export class HollowWarEngine {
         const sp = def.sweepProjectiles;
         const projCount = sp.count + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
         const pierce = (sp.pierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-        const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
-        const spread = projCount > 1 ? 0.22 : 0;
+        const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, spreadScale, staggerOverride } =
+          this.getProjTraits(art, def, extraMods);
+        const spread = projCount > 1 ? 0.22 * spreadScale : 0;
         const life = sp.duration * durScale;
+        const stagger = staggerOverride ?? 0;
         for (let k = 0; k < projCount; k++) {
           const a = this.player.aimAngle + (k - (projCount - 1) / 2) * spread;
-          this.projectiles.push({
-            id: nextEntityId++,
+          const projData = {
             x: ox + Math.cos(a) * 20,
             y: oy + Math.sin(a) * 20,
             vx: Math.cos(a) * sp.speed * speedScale,
@@ -1037,16 +1053,21 @@ export class HollowWarEngine {
             radius: sp.radius * Math.sqrt(areaScale),
             color: def.color,
             artId: def.id,
-            pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+            pierceLeft: pierce,
             life,
-            hitIds: new Set(),
+            hitIds: new Set<number>(),
             homing: isHoming,
             explodeRadius: sp.explodeRadius ? sp.explodeRadius * areaScale : undefined,
             explodeScale: sp.explodeScale ?? 0.65,
             splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
-            boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
+            boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
             extraMods,
-          });
+          };
+          if (stagger > 0 && k > 0) {
+            this.pendingProjectiles.push({ delay: k * stagger, proj: projData });
+          } else {
+            this.projectiles.push({ id: nextEntityId++, ...projData });
+          }
         }
       }
 
@@ -1384,12 +1405,12 @@ export class HollowWarEngine {
             radius: 5.5 * Math.sqrt(areaScale),
             color: def.color,
             artId: def.id,
-            pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+            pierceLeft: pierce,
             life,
             hitIds: new Set(),
             homing: isHoming,
             splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
-            boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
+            boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
             extraMods,
           });
         }
@@ -1433,15 +1454,16 @@ export class HollowWarEngine {
           } else {
             const count = def.baseProjectiles + Math.max(0, Math.round(this.sheet.get('projectileCount', def.tags, extraMods)));
             const pierce = (def.basePierce ?? 0) + Math.max(0, Math.round(this.sheet.get('pierceCount', def.tags, extraMods)));
-            const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit } = this.getProjTraits(art, def, extraMods);
+            const { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, spreadScale, staggerOverride } =
+              this.getProjTraits(art, def, extraMods);
             const baseA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
             const projSpeed = (def.projectileSpeed ?? 540) * speedScale;
             const life = 1.4 * durScale;
-            const spread = count > 1 ? 0.16 : 0;
+            const spread = count > 1 ? 0.16 * spreadScale : 0;
+            const stagger = staggerOverride ?? 0;
             for (let k = 0; k < count; k++) {
               const a = baseA + (k - (count - 1) / 2) * spread;
-              this.projectiles.push({
-                id: nextEntityId++,
+              const projData = {
                 x: t.x,
                 y: t.y,
                 vx: Math.cos(a) * projSpeed,
@@ -1449,14 +1471,19 @@ export class HollowWarEngine {
                 radius: 6 * Math.sqrt(areaScale),
                 color: def.color,
                 artId: def.id,
-                pierceLeft: isBoomerang ? Math.max(pierce, 99) : pierce,
+                pierceLeft: pierce,
                 life,
-                hitIds: new Set(),
+                hitIds: new Set<number>(),
                 homing: isHoming,
                 splitOnHit: splitOnHit > 0 ? splitOnHit : undefined,
-                boomerang: isBoomerang ? { maxLife: life, returned: false } : undefined,
+                boomerang: isBoomerang ? { maxLife: life, initialPierce: pierce, returned: false } : undefined,
                 extraMods,
-              });
+              };
+              if (stagger > 0 && k > 0) {
+                this.pendingProjectiles.push({ delay: k * stagger, fixedOrigin: true, proj: projData });
+              } else {
+                this.projectiles.push({ id: nextEntityId++, ...projData });
+              }
             }
           }
         }
@@ -1825,6 +1852,8 @@ export class HollowWarEngine {
       if (p.boomerang) {
         if (!p.boomerang.returned && p.life <= p.boomerang.maxLife * 0.5) {
           p.boomerang.returned = true;
+          p.pierceLeft = p.boomerang.initialPierce;
+          p.spiral = undefined;
           p.hitIds.clear(); // Reset hit list on return pass!
         }
         if (p.boomerang.returned) {
@@ -1912,8 +1941,9 @@ export class HollowWarEngine {
           if (p.splitOnHit && p.splitOnHit > 0) {
             const baseA = Math.atan2(p.vy, p.vx);
             const shardMods: Modifier[] = [...mods, { stat: 'damage', kind: 'more', value: -0.45 }];
-            for (let s = 0; s < p.splitOnHit; s++) {
-              const offset = s === 0 ? -0.45 : 0.45;
+            const splitCount = p.splitOnHit;
+            for (let s = 0; s < splitCount; s++) {
+              const offset = splitCount > 1 ? (s - (splitCount - 1) / 2) * 0.55 : 0;
               const sa = baseA + offset;
               this.projectiles.push({
                 id: nextEntityId++,
@@ -1927,6 +1957,9 @@ export class HollowWarEngine {
                 pierceLeft: 0,
                 life: 0.65,
                 hitIds: new Set([e.id]),
+                homing: p.homing,
+                explodeRadius: p.explodeRadius ? p.explodeRadius * 0.6 : undefined,
+                explodeScale: p.explodeScale,
                 extraMods: shardMods,
               });
             }
@@ -1934,6 +1967,18 @@ export class HollowWarEngine {
 
           if (p.pierceLeft > 0) {
             p.pierceLeft -= 1;
+          } else if (p.boomerang && !p.boomerang.returned) {
+            // Instead of dying when outward pierce is exhausted, reverse into return pass with normal pierce budget
+            p.boomerang.returned = true;
+            p.pierceLeft = p.boomerang.initialPierce;
+            p.life = Math.max(p.life, p.boomerang.maxLife * 0.65);
+            p.spiral = undefined;
+            p.hitIds = new Set([e.id]);
+            const speed = Math.max(240, Math.hypot(p.vx, p.vy));
+            const retAngle = Math.atan2(this.player.y - p.y, this.player.x - p.x);
+            p.vx = Math.cos(retAngle) * speed;
+            p.vy = Math.sin(retAngle) * speed;
+            break;
           } else {
             this.projectiles.splice(i, 1);
             removed = true;

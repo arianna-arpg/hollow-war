@@ -387,4 +387,84 @@ describe('Hollow War Combat SDK', () => {
     expect(pnProjs.length).toBeGreaterThanOrEqual(6);
     expect(pnProjs.every((p) => p.homing === true)).toBe(true);
   });
+
+  it('triggers Boomerang when a projectile would die without granting infinite pierce', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('magician'); // starts with Firebolt (basePierce 0)
+    const fb = engine.arts.find((a) => a.artId === 'firebolt')!;
+    fb.inscriptions.push(INSCRIPTIONS.boomerang);
+    fb.cooldownTimer = 0;
+
+    // Clear initial ring and place 2 targets in front of the player along aimAngle = 0
+    engine.enemies = [];
+    engine.player.x = 0;
+    engine.player.y = 0;
+    engine.player.aimAngle = 0;
+    engine.update(0.02);
+
+    const proj = engine.projectiles.find((p) => p.artId === 'firebolt')!;
+    expect(proj.pierceLeft).toBe(0);
+    expect(proj.boomerang?.initialPierce).toBe(0);
+    expect(proj.boomerang?.returned).toBe(false);
+
+    // Hit Enemy 1 -> exhausts outward pierce (0) -> reverses instead of dying!
+    engine.enemies.push({
+      id: 9001,
+      archetype: 'zombie',
+      faction: 'undead',
+      isBoss: false,
+      name: 'Target 1',
+      x: proj.x,
+      y: proj.y,
+      vx: 0,
+      vy: 0,
+      facing: 0,
+      radius: 16,
+      life: 1000,
+      maxLife: 1000,
+      speed: 0,
+      damage: 1,
+      xpValue: 1,
+      armor: 0,
+      resistances: {},
+      color: '#fff',
+      hitFlash: 0,
+      ailments: [],
+      abilityTimer: 0,
+      orbitHitCooldown: 0,
+    });
+    engine.update(0.01);
+    expect(engine.projectiles.includes(proj)).toBe(true);
+    expect(proj.boomerang?.returned).toBe(true);
+    expect(proj.pierceLeft).toBe(0);
+
+    // Hit Enemy 2 on the return route -> with initialPierce 0, projectile now dies!
+    engine.enemies.push({
+      id: 9002,
+      archetype: 'zombie',
+      faction: 'undead',
+      isBoss: false,
+      name: 'Target 2',
+      x: proj.x,
+      y: proj.y,
+      vx: 0,
+      vy: 0,
+      facing: 0,
+      radius: 16,
+      life: 1000,
+      maxLife: 1000,
+      speed: 0,
+      damage: 1,
+      xpValue: 1,
+      armor: 0,
+      resistances: {},
+      color: '#fff',
+      hitFlash: 0,
+      ailments: [],
+      abilityTimer: 0,
+      orbitHitCooldown: 0,
+    });
+    engine.update(0.01);
+    expect(engine.projectiles.includes(proj)).toBe(false);
+  });
 });

@@ -24,12 +24,27 @@ function formatConstructBadge(engine: HollowWarEngine, artId: string): string {
   return '';
 }
 
+function getCooldownProgress(engine: HollowWarEngine, artId: string): { pct: number; label: string; isPassive: boolean } {
+  const ar = engine.arts.find((a) => a.artId === artId);
+  const def = ARTS[artId];
+  if (!ar || !def) return { pct: 100, label: '', isPassive: true };
+  if (def.behavior === 'orbit' || (def.behavior === 'minion' && !def.timedSummon)) {
+    return { pct: 100, label: 'ACTIVE', isPassive: true };
+  }
+  const maxCd = Math.max(0.08, engine.getArtEffectiveCooldown(ar));
+  const rem = Math.max(0, ar.cooldownTimer);
+  const pct = Math.max(0, Math.min(100, (1 - rem / maxCd) * 100));
+  const label = rem <= 0.04 ? 'CAST' : `${rem.toFixed(1)}s`;
+  return { pct, label, isPassive: false };
+}
+
 function buildHotbarHtml(engine: HollowWarEngine): string {
   return engine.arts
     .map((ar) => {
       const def = ARTS[ar.artId];
       const preview = engine.getArtPreview(ar);
       const countText = formatConstructBadge(engine, ar.artId);
+      const cd = getCooldownProgress(engine, ar.artId);
       const insTooltip =
         ar.inscriptions.length > 0
           ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(148,163,184,0.2)">
@@ -44,22 +59,29 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
 
       return `
         <div class="skill-slot" style="border-color:${def.color}55">
-          <div class="skill-slot-header">
-            <span style="color:${def.color}">${def.name}</span>
-            <span>Rank ${ar.level}</span>
+          <div class="skill-cd-clip">
+            <div class="skill-cd-fill" data-cd-fill="${ar.artId}" style="width:${cd.pct.toFixed(1)}%;background:${def.color}"></div>
           </div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:2px">
-            ${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}% Crit
+          <div class="skill-slot-header" style="position:relative;z-index:1">
+            <span style="color:${def.color}">${def.name}</span>
+            <span>R${ar.level}</span>
+          </div>
+          <div style="position:relative;z-index:1;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:2px">
+            <span>${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}%</span>
+            <span data-cd-text="${ar.artId}" style="color:${cd.isPassive ? '#86efac' : '#cbd5e1'};font-weight:600">${cd.label}</span>
           </div>
           ${
             countText
-              ? `<div class="active-count-badge" data-active-count="${ar.artId}" style="font-size:11px;font-weight:700;color:#86efac;margin-top:2px">${countText}</div>`
+              ? `<div class="active-count-badge" data-active-count="${ar.artId}" style="position:relative;z-index:1;font-size:11px;font-weight:700;color:#86efac;margin-top:2px">${countText}</div>`
               : ''
           }
-          <div class="support-pips">
+          <div class="support-pips" style="position:relative;z-index:1">
             ${ar.inscriptions
               .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
               .join('')}
+          </div>
+          <div class="skill-cd-track">
+            <div class="skill-cd-bar" data-cd-bar="${ar.artId}" style="width:${cd.pct.toFixed(1)}%;background:${def.color}"></div>
           </div>
           <div class="hw-tooltip">
             <div style="font-weight:800;color:${def.color};margin-bottom:3px">${def.name} (Rank ${ar.level})</div>
@@ -210,6 +232,21 @@ export function renderHud(
       existingRack.querySelectorAll<HTMLElement>('[data-active-count]').forEach((el) => {
         const artId = el.dataset.activeCount;
         if (artId) el.textContent = formatConstructBadge(engine, artId);
+      });
+      existingRack.querySelectorAll<HTMLElement>('[data-cd-bar]').forEach((el) => {
+        const artId = el.dataset.cdBar;
+        if (artId) el.style.width = `${getCooldownProgress(engine, artId).pct.toFixed(1)}%`;
+      });
+      existingRack.querySelectorAll<HTMLElement>('[data-cd-fill]').forEach((el) => {
+        const artId = el.dataset.cdFill;
+        if (artId) el.style.width = `${getCooldownProgress(engine, artId).pct.toFixed(1)}%`;
+      });
+      existingRack.querySelectorAll<HTMLElement>('[data-cd-text]').forEach((el) => {
+        const artId = el.dataset.cdText;
+        if (artId) {
+          const cd = getCooldownProgress(engine, artId);
+          el.textContent = cd.label;
+        }
       });
     }
   }

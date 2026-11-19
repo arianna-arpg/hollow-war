@@ -566,10 +566,7 @@ export class HollowWarEngine {
       art.cooldownTimer -= dt;
       if (art.cooldownTimer <= 0) {
         const extraMods = this.getArtExtraMods(art);
-        const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
-        const speed = Math.max(0.15, this.sheet.get(speedStat, def.tags, extraMods));
-        const cdr = Math.max(0.25, this.sheet.get('cooldownRecovery', def.tags, extraMods));
-        art.cooldownTimer = Math.max(0.08, def.baseCooldown / (def.cooldownOnly ? cdr : speed * cdr));
+        art.cooldownTimer = this.getArtEffectiveCooldown(art, extraMods);
 
         this.castArt(art, def, extraMods);
 
@@ -579,6 +576,16 @@ export class HollowWarEngine {
         }
       }
     }
+  }
+
+  getArtEffectiveCooldown(art: EquippedArt, precomputedMods?: Modifier[]): number {
+    const def = ARTS[art.artId];
+    if (!def) return 1;
+    const extraMods = precomputedMods ?? this.getArtExtraMods(art);
+    const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
+    const speed = Math.max(0.15, this.sheet.get(speedStat, def.tags, extraMods));
+    const cdr = Math.max(0.25, this.sheet.get('cooldownRecovery', def.tags, extraMods));
+    return Math.max(0.08, def.baseCooldown / (def.cooldownOnly ? cdr : speed * cdr));
   }
 
   private updateEchoes(dt: number): void {

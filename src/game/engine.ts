@@ -1,11 +1,14 @@
 import {
+  ART_MORPH_TRIGGER_RANK,
   ARTS,
   getArtModsForRank,
+  getArtMorphRoutes,
   getArtRankStep,
   INSCRIPTIONS,
   MAX_ACTIVE_ARTS,
   MAX_ART_RANK,
   type ArtDefinition,
+  type ArtMorphDef,
   type InscriptionDef,
 } from '../content/skills.ts';
 import {
@@ -16,7 +19,7 @@ import {
   type ArchiveState,
 } from '../meta/archive.ts';
 import { HOLLOW_WAR_STAT_RULES } from '../content/stats.ts';
-import { UPGRADE_POOL, type UpgradeCardDef } from '../content/upgrades.ts';
+import { UPGRADE_POOL, type PassiveDomain, type UpgradeCardDef } from '../content/upgrades.ts';
 import { VESSELS, type VesselDefinition } from '../content/vessels.ts';
 import { computeOutgoingByType, previewSkillDps, resolveHit, type SkillDamageSpec } from '../sdk/combat-resolver.ts';
 import { ProcRuntime, type ProcEventContext } from '../sdk/proc-runtime.ts';
@@ -51,7 +54,9 @@ export type GamePhase =
   | 'playing'
   | 'draft'
   | 'art_select'
+  | 'passive_select'
   | 'inscribe'
+  | 'art_morph'
   | 'paused'
   | 'game_over';
 
@@ -64,6 +69,20 @@ export interface ArtSelectChoiceState {
   archetype: ArtArchetypeFilter;
   label: string;
   options: Array<{ artDef: ArtDefinition; isRankUp: boolean; nextRank: number; dpsDeltaPct: number }>;
+}
+
+export interface PassiveSelectChoiceState {
+  domain: PassiveDomain;
+  label: string;
+  options: Array<{ card: UpgradeCardDef; stacks: number; dpsDeltaPct: number; summaryText: string }>;
+}
+
+export interface ArtMorphChoiceState {
+  artId: string;
+  routes: [
+    { morph: ArtMorphDef; dpsDeltaPct: number },
+    { morph: ArtMorphDef; dpsDeltaPct: number },
+  ];
 }
 
 export interface DraftOption {
@@ -188,7 +207,12 @@ export class HollowWarEngine {
 
   draftOptions: DraftOption[] = [];
   artSelectChoice: ArtSelectChoiceState | null = null;
+  passiveSelectChoice: PassiveSelectChoiceState | null = null;
   inscribeChoice: InscribeChoiceState | null = null;
+  artMorphChoice: ArtMorphChoiceState | null = null;
+  private cachedArtOffers: Map<string, ArtSelectChoiceState> = new Map();
+  private cachedPassiveOffers: Map<string, PassiveSelectChoiceState> = new Map();
+  private cachedInscribeOffers: Map<string, InscribeChoiceState> = new Map();
   thronelord: { id: 'malakor' | 'vexarion' | 'karnath'; name: string; title: string } | null = null;
 
   private spawnTimer = 0;
@@ -287,7 +311,10 @@ export class HollowWarEngine {
     this.particles = [];
     this.draftOptions = [];
     this.artSelectChoice = null;
+    this.passiveSelectChoice = null;
     this.inscribeChoice = null;
+    this.artMorphChoice = null;
+    this.clearSubOfferCaches();
     this.thronelord = null;
 
     this.elapsed = 0;
@@ -476,6 +503,9 @@ export class HollowWarEngine {
         for (const ins of this.inscriptions) {
           mods.push(...ins.mods);
         }
+        if (this.morph) {
+          mods.push(...this.morph.mods);
+        }
         return mods;
       },
     };
@@ -483,14 +513,30 @@ export class HollowWarEngine {
     return inst;
   }
 
+  getEffectiveArtSpec(art: EquippedArt): ArtDefinition {
+    const base = ARTS[art.artId];
+    const m = art.morph;
+    if (!m) return base;
+    return {
+      ...base,
+      behavior: m.overrideBehavior ?? base.behavior,
+      baseProjectiles: base.baseProjectiles + (m.extraProjectiles ?? 0),
+      baseRadius: m.overrideRadius ?? base.baseRadius,
+      baseCooldown: m.overrideCooldown ?? base.baseCooldown,
+      explodeRadius: m.explodeRadius ?? base.explodeRadius,
+      explodeScale: m.explodeScale ?? base.explodeScale,
+      tags: m.addTags ? [...new Set([...base.tags, ...m.addTags])] : base.tags,
+    };
+  }
+
   getArtExtraMods(art: EquippedArt): Modifier[] {
     return art.getArtMods();
   }
 
   getArtPreview(art: EquippedArt): SkillDpsPreview {
-    const def = ARTS[art.artId];
-    const extraConvs = art.inscriptions.flatMap((i) => i.conversions ?? []);
-    const extraExtras = art.inscriptions.flatMap((i) => i.extras ?? []);
+    const def = this.getEffectiveArtSpec(art);
+    const extraConvs = [...art.inscriptions.flatMap((i) => i.conversions ?? []), ...(art.morph?.conversions ?? [])];
+    const extraExtras = [...art.inscriptions.flatMap((i) => i.extras ?? []), ...(art.morph?.extras ?? [])];
     const echoMult = 1 + art.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
     return previewSkillDps(
       this.sheet,
@@ -550,7 +596,7 @@ export class HollowWarEngine {
 
   private updateArts(dt: number): void {
     for (const art of this.arts) {
-      const def = ARTS[art.artId];
+      const def = this.getEffectiveArtSpec(art);
       if (!def) continue;
 
       if (def.behavior === 'orbit') {
@@ -579,7 +625,7 @@ export class HollowWarEngine {
   }
 
   getArtEffectiveCooldown(art: EquippedArt, precomputedMods?: Modifier[]): number {
-    const def = ARTS[art.artId];
+    const def = this.getEffectiveArtSpec(art);
     if (!def) return 1;
     const extraMods = precomputedMods ?? this.getArtExtraMods(art);
     const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
@@ -595,8 +641,8 @@ export class HollowWarEngine {
       if (echo.delay <= 0) {
         this.pendingEchoes.splice(i, 1);
         const art = this.arts.find((a) => a.artId === echo.artId);
-        const def = ARTS[echo.artId];
-        if (art && def) {
+        if (art) {
+          const def = this.getEffectiveArtSpec(art);
           this.castArt(art, def, this.getArtExtraMods(art));
         }
       }
@@ -610,7 +656,7 @@ export class HollowWarEngine {
       if (shock.delay <= 0) {
         this.pendingAftershocks.splice(i, 1);
         const art = this.arts.find((a) => a.artId === shock.artId);
-        const def = ARTS[shock.artId];
+        const def = art ? this.getEffectiveArtSpec(art) : ARTS[shock.artId];
         if (!art || !def) continue;
         const extraMods = this.getArtExtraMods(art);
         const scaledSpec: SkillDamageSpec = {
@@ -644,8 +690,8 @@ export class HollowWarEngine {
       if (th.delay <= 0) {
         this.pendingThrusts.splice(i, 1);
         const art = this.arts.find((a) => a.artId === th.artId);
-        const def = ARTS[th.artId];
-        if (art && def) {
+        if (art) {
+          const def = this.getEffectiveArtSpec(art);
           this.executeThrust(art, def, this.getArtExtraMods(art), this.player.aimAngle, th.reach, th.halfWidth, th.reachOffset, th.doReverse);
         }
       }
@@ -796,9 +842,11 @@ export class HollowWarEngine {
     const areaScale = this.sheet.get('area', def.tags, extraMods);
     const speedScale = this.sheet.get('projectileSpeed', def.tags, extraMods);
     const durScale = this.sheet.get('projectileDuration', def.tags, extraMods);
-    const isBoomerang = Boolean(art?.inscriptions.some((i) => i.returnBoomerang));
-    const isHoming = Boolean(def.homing || art?.inscriptions.some((i) => i.forceHoming));
-    const splitOnHit = art ? art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0) : 0;
+    const morph = art?.morph;
+    const isBoomerang = Boolean(morph?.returnBoomerang || art?.inscriptions.some((i) => i.returnBoomerang));
+    const isHoming = Boolean(def.homing || morph?.forceHoming || art?.inscriptions.some((i) => i.forceHoming));
+    const splitOnHit =
+      (morph?.splitOnHit ?? 0) + (art ? art.inscriptions.reduce((s, i) => s + (i.splitOnHit ?? 0), 0) : 0);
     const spreadScale = art ? art.inscriptions.reduce((s, i) => s * (i.spreadScale ?? 1), 1) : 1;
     const staggerOverride = art?.inscriptions.find((i) => i.staggerOverride !== undefined)?.staggerOverride;
     return { areaScale, speedScale, durScale, isBoomerang, isHoming, splitOnHit, spreadScale, staggerOverride };
@@ -968,18 +1016,19 @@ export class HollowWarEngine {
           delay: def.innateAftershock.delay,
         });
       }
-      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
-      if (aftershockIns?.aftershockDelay) {
-        const count = aftershockIns.aftershockCount ?? 1;
+      const morph = art.morph;
+      const shockSpec = morph?.aftershockDelay ? morph : art.inscriptions.find((i) => i.aftershockDelay);
+      if (shockSpec?.aftershockDelay) {
+        const count = shockSpec.aftershockCount ?? 1;
         for (let c = 0; c < count; c++) {
           this.pendingAftershocks.push({
             artId: def.id,
             x: this.player.x,
             y: this.player.y,
             radius: radius * 0.9,
-            scale: aftershockIns.aftershockScale ?? 0.65,
-            color: aftershockIns.color,
-            delay: aftershockIns.aftershockDelay * (c + 1),
+            scale: shockSpec.aftershockScale ?? 0.65,
+            color: shockSpec.color,
+            delay: shockSpec.aftershockDelay * (c + 1),
           });
         }
       }
@@ -1006,8 +1055,10 @@ export class HollowWarEngine {
       }
     } else if (def.behavior === 'sweep') {
       const radius = def.baseRadius * this.sheet.get('area', def.tags, extraMods);
-      const arcScale = art.inscriptions.reduce((s, i) => s * (i.sweepArcScale ?? 1), 1);
-      const arcSpread = Math.min(Math.PI * 1.95, Math.PI * 0.78 * arcScale);
+      const baseArc = def.baseSweepArc ?? Math.PI * 0.78;
+      const arcScale =
+        (art.morph?.sweepArcScale ?? 1) * art.inscriptions.reduce((s, i) => s * (i.sweepArcScale ?? 1), 1);
+      const arcSpread = Math.min(Math.PI * 1.95, baseArc * arcScale);
       const reachOffset = art.inscriptions.reduce((s, i) => s + (i.sweepReachOffset ?? 0), 0);
       const ox = this.player.x + Math.cos(this.player.aimAngle) * reachOffset;
       const oy = this.player.y + Math.sin(this.player.aimAngle) * reachOffset;
@@ -1100,18 +1151,18 @@ export class HollowWarEngine {
         }
       }
 
-      const aftershockIns = art.inscriptions.find((i) => i.aftershockDelay);
-      if (aftershockIns?.aftershockDelay) {
-        const count = aftershockIns.aftershockCount ?? 1;
+      const aftershockSpec = art.morph?.aftershockDelay ? art.morph : art.inscriptions.find((i) => i.aftershockDelay);
+      if (aftershockSpec?.aftershockDelay) {
+        const count = aftershockSpec.aftershockCount ?? 1;
         for (let c = 0; c < count; c++) {
           this.pendingAftershocks.push({
             artId: def.id,
             x: ox + Math.cos(this.player.aimAngle) * (radius * 0.45),
             y: oy + Math.sin(this.player.aimAngle) * (radius * 0.45),
             radius: radius * 0.85,
-            scale: aftershockIns.aftershockScale ?? 0.65,
-            color: aftershockIns.color,
-            delay: aftershockIns.aftershockDelay * (c + 1),
+            scale: aftershockSpec.aftershockScale ?? 0.65,
+            color: aftershockSpec.color,
+            delay: aftershockSpec.aftershockDelay * (c + 1),
           });
         }
       }
@@ -1295,7 +1346,7 @@ export class HollowWarEngine {
     for (let i = this.minions.length - 1; i >= 0; i--) {
       const m = this.minions[i];
       const art = this.arts.find((a) => a.artId === m.artId);
-      const def = ARTS[m.artId];
+      const def = art ? this.getEffectiveArtSpec(art) : ARTS[m.artId];
       const extraMods = art ? this.getArtExtraMods(art) : [];
 
       if (m.temporary && m.life !== undefined) {
@@ -1327,8 +1378,12 @@ export class HollowWarEngine {
       }
 
       if (m.kind === 'skeleton' || m.kind === 'bone_golem' || m.kind === 'zombie') {
-        const speedMult = art ? art.inscriptions.reduce((s, ins) => s * (ins.minionSpeedScale ?? 1), 1) : 1;
-        const cleaveBase = art ? art.inscriptions.reduce((s, ins) => s + (ins.minionCleaveRadius ?? 0), 0) : 0;
+        const speedMult =
+          (art?.morph?.minionSpeedScale ?? 1) *
+          (art ? art.inscriptions.reduce((s, ins) => s * (ins.minionSpeedScale ?? 1), 1) : 1);
+        const cleaveBase =
+          (art?.morph?.minionCleaveRadius ?? 0) +
+          (art ? art.inscriptions.reduce((s, ins) => s + (ins.minionCleaveRadius ?? 0), 0) : 0);
         if (nearest) {
           const dx = nearest.x - m.x;
           const dy = nearest.y - m.y;
@@ -1480,7 +1535,7 @@ export class HollowWarEngine {
       t.fireTimer -= dt;
       if (t.fireTimer <= 0) {
         const art = this.arts.find((a) => a.artId === t.artId);
-        const def = ARTS[t.artId];
+        const def = art ? this.getEffectiveArtSpec(art) : ARTS[t.artId];
         if (!art || !def) continue;
         const extraMods = this.getArtExtraMods(art);
         const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
@@ -1555,7 +1610,7 @@ export class HollowWarEngine {
       );
       if (triggered) {
         const art = this.arts.find((a) => a.artId === tr.artId);
-        const def = ARTS[tr.artId];
+        const def = art ? this.getEffectiveArtSpec(art) : ARTS[tr.artId];
         if (art && def) {
           const extraMods = this.getArtExtraMods(art);
           this.novas.push({
@@ -1593,7 +1648,7 @@ export class HollowWarEngine {
       gz.tickTimer -= dt;
       if (gz.tickTimer <= 0) {
         const art = this.arts.find((a) => a.artId === gz.artId);
-        const def = ARTS[gz.artId];
+        const def = art ? this.getEffectiveArtSpec(art) : ARTS[gz.artId];
         if (!art || !def) continue;
         const extraMods = this.getArtExtraMods(art);
         const spd = Math.max(0.2, this.sheet.get('castSpeed', def.tags, extraMods));
@@ -1659,8 +1714,14 @@ export class HollowWarEngine {
   ): void {
     if (enemy.life <= 0) return;
 
-    const extraConvs = art ? art.inscriptions.flatMap((i) => i.conversions ?? []) : [];
-    const extraExtras = art ? art.inscriptions.flatMap((i) => i.extras ?? []) : [];
+    const extraConvs = [
+      ...(art ? art.inscriptions.flatMap((i) => i.conversions ?? []) : []),
+      ...(art?.morph?.conversions ?? []),
+    ];
+    const extraExtras = [
+      ...(art ? art.inscriptions.flatMap((i) => i.extras ?? []) : []),
+      ...(art?.morph?.extras ?? []),
+    ];
     const innateAilmentMods: Modifier[] = [];
     if (art?.artId === 'poison_nova') {
       innateAilmentMods.push({ stat: 'poisonChance', kind: 'flat', value: 0.6 });
@@ -1690,7 +1751,9 @@ export class HollowWarEngine {
       extraExtras,
     );
 
-    const execBonus = art ? art.inscriptions.reduce((s, i) => s + (i.executeBonus ?? 0), 0) : 0;
+    const execBonus =
+      (art?.morph?.executeBonus ?? 0) +
+      (art ? art.inscriptions.reduce((s, i) => s + (i.executeBonus ?? 0), 0) : 0);
     const isExecute = execBonus > 0 && enemy.life < enemy.maxLife * 0.5;
     const total = receipt.totalDamage * (isExecute ? 1 + execBonus : 1);
 
@@ -1958,7 +2021,7 @@ export class HollowWarEngine {
       }
 
       const art = this.arts.find((a) => a.artId === p.artId);
-      const def = ARTS[p.artId];
+      const def = art ? this.getEffectiveArtSpec(art) : ARTS[p.artId];
       if (!def) continue;
 
       let removed = false;
@@ -2772,7 +2835,14 @@ export class HollowWarEngine {
     }
   }
 
+  private clearSubOfferCaches(): void {
+    this.cachedArtOffers.clear();
+    this.cachedPassiveOffers.clear();
+    this.cachedInscribeOffers.clear();
+  }
+
   openDraft(): void {
+    this.clearSubOfferCaches();
     this.draftOptions = this.rollDraftOptions(3);
     this.setPhase('draft');
   }
@@ -2780,6 +2850,7 @@ export class HollowWarEngine {
   rerollDraft(): void {
     if (this.player.rerolls <= 0 || this.phase !== 'draft') return;
     this.player.rerolls -= 1;
+    this.clearSubOfferCaches();
     const prevIds = new Set(this.draftOptions.map((o) => o.card.id));
     let next = this.rollDraftOptions(3, prevIds);
     // Bad-luck protection: only fall back to allowing previous IDs if fewer than 3 alternatives exist
@@ -2797,24 +2868,16 @@ export class HollowWarEngine {
     this.setPhase('draft');
   }
 
-  rerollArtSelect(): void {
-    if (this.player.rerolls <= 0 || this.phase !== 'art_select' || !this.artSelectChoice) return;
-    this.player.rerolls -= 1;
-    const prevArtIds = new Set(this.artSelectChoice.options.map((o) => o.artDef.id));
-    this.openArtSelectForArchetype(this.artSelectChoice.archetype, prevArtIds);
+  backFromPassiveSelect(): void {
+    if (this.phase !== 'passive_select') return;
+    this.passiveSelectChoice = null;
+    this.setPhase('draft');
   }
 
   backFromInscribe(): void {
     if (this.phase !== 'inscribe') return;
     this.inscribeChoice = null;
     this.setPhase('draft');
-  }
-
-  rerollInscribe(): void {
-    if (this.player.rerolls <= 0 || this.phase !== 'inscribe' || !this.inscribeChoice) return;
-    this.player.rerolls -= 1;
-    const prevInsIds = new Set(this.inscribeChoice.options.map((o) => o.ins.id));
-    this.openInscribeForArt(this.inscribeChoice.artId, prevInsIds);
   }
 
   banishDraftOption(index: number): void {
@@ -2882,6 +2945,16 @@ export class HollowWarEngine {
     });
   }
 
+  private getEligiblePassivesForDomain(domain: PassiveDomain): UpgradeCardDef[] {
+    return UPGRADE_POOL.filter((card) => {
+      if (card.category !== 'passive' || card.passiveDomain !== domain) return false;
+      if (this.banishedCards.has(card.id)) return false;
+      const stacks = this.acquiredCards.get(card.id) ?? 0;
+      if (card.maxStacks !== undefined && stacks >= card.maxStacks) return false;
+      return true;
+    });
+  }
+
   private rollDraftOptions(count: number, excludeIds: Set<string> = new Set()): DraftOption[] {
     const maxIns = getArchiveBonuses(this.archive).maxInscriptionsPerArt;
     const affinityBoost = 1.2 + getArchiveBonuses(this.archive).affinityLevel * 1.4;
@@ -2896,13 +2969,81 @@ export class HollowWarEngine {
 
     for (const card of UPGRADE_POOL) {
       if (this.banishedCards.has(card.id) || excludeIds.has(card.id)) continue;
-      // Individual Art cards are grouped into Archetype Art offerings below to prevent pool dilution
+      // Individual Arts and domain-tagged Passives are grouped below to prevent pool dilution
       if (card.category === 'art') continue;
+      if (card.category === 'passive' && card.passiveDomain) continue;
 
       const stacks = this.acquiredCards.get(card.id) ?? 0;
       if (card.maxStacks !== undefined && stacks >= card.maxStacks) continue;
       const shared = card.tags.filter((t) => activeTags.has(t)).length;
-      eligible.push({ card, weight: 1 + shared * affinityBoost });
+      eligible.push({ card, weight: 0.75 + shared * affinityBoost * 0.65 });
+    }
+
+    // Grouped "Passive: <Domain>" offerings
+    const passiveDomains: Array<{ id: PassiveDomain; label: string; desc: string; tags: SkillTag[] }> = [
+      {
+        id: 'elemental',
+        label: 'Elemental & Chaos',
+        desc: 'Choose 1 of up to 4 Fire, Cold, Lightning, Chaos, or Penetration passives.',
+        tags: ['fire', 'cold', 'lightning', 'chaos'],
+      },
+      {
+        id: 'martial',
+        label: 'Martial & Speed',
+        desc: 'Choose 1 of up to 4 Physical, Crit, Attack/Cast Speed, Area, or Projectile passives.',
+        tags: ['physical', 'attack', 'spell', 'projectile'],
+      },
+      {
+        id: 'constructs',
+        label: 'Constructs & Ailments',
+        desc: 'Choose 1 of up to 4 Minion, Totem, Trap, or DoT/Ailment passives.',
+        tags: ['minion', 'totem', 'trap', 'dot'],
+      },
+      {
+        id: 'bastion',
+        label: 'Bastion & Utility',
+        desc: 'Choose 1 of up to 4 Life, Ward, Armor, Leech, Move Speed, Cooldown, or Essence passives.',
+        tags: [],
+      },
+    ];
+    for (const dom of passiveDomains) {
+      const cardId = `passive_dom_${dom.id}`;
+      if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
+      const pool = this.getEligiblePassivesForDomain(dom.id);
+      if (pool.length === 0) continue;
+      const shared = dom.tags.filter((t) => activeTags.has(t)).length;
+      eligible.push({
+        card: {
+          id: cardId,
+          name: `Passive: ${dom.label}`,
+          category: 'passive_domain',
+          rarity: 'common',
+          passiveDomain: dom.id,
+          description: `${dom.desc} (${pool.length} available).`,
+          tags: dom.tags,
+        },
+        weight: 1.8 + shared * affinityBoost * 0.7,
+      });
+    }
+
+    // Offer "Morph: <Active Art>" directly if any active Art is at level cap without a morph yet
+    for (const ar of this.arts) {
+      if (ar.level < ART_MORPH_TRIGGER_RANK || ar.morph) continue;
+      const def = ARTS[ar.artId];
+      const cardId = `morph_${ar.artId}`;
+      if (this.banishedCards.has(cardId) || excludeIds.has(cardId)) continue;
+      eligible.push({
+        card: {
+          id: cardId,
+          name: `Morph: ${def.name}`,
+          category: 'morph',
+          rarity: 'mythic',
+          artId: ar.artId,
+          description: `${def.name} has reached Rank ${ART_MORPH_TRIGGER_RANK}. Choose one of two transformative Hollow Wake routes.`,
+          tags: def.tags,
+        },
+        weight: 4.5,
+      });
     }
 
     // Grouped "Art: <Archetype>" offerings (e.g. Art: Fire, Art: Cold)
@@ -2958,11 +3099,12 @@ export class HollowWarEngine {
       });
     }
 
-    // Weighted sampling without replacement, capping Inscribe & Art Archetype cards to at most 1 each per 3-card draft
+    // Weighted sampling without replacement, capping Inscribe, Art Tome (1 each) & Passive Tome (max 2) per 3-card draft
     const picked: WeightedCandidate[] = [];
     const pool = [...eligible];
     let inscriptionCount = 0;
     let artArchCount = 0;
+    let passiveDomCount = 0;
 
     while (picked.length < count && pool.length > 0) {
       let filtered = pool;
@@ -2972,6 +3114,10 @@ export class HollowWarEngine {
       }
       if (artArchCount >= 1) {
         const alt = filtered.filter((c) => c.card.category !== 'art_archetype');
+        if (alt.length > 0) filtered = alt;
+      }
+      if (passiveDomCount >= 2) {
+        const alt = filtered.filter((c) => c.card.category !== 'passive_domain');
         if (alt.length > 0) filtered = alt;
       }
 
@@ -2989,6 +3135,7 @@ export class HollowWarEngine {
       picked.push(chosen);
       if (chosen.card.category === 'inscription') inscriptionCount++;
       if (chosen.card.category === 'art_archetype') artArchCount++;
+      if (chosen.card.category === 'passive_domain') passiveDomCount++;
       const idx = pool.indexOf(chosen);
       if (idx >= 0) pool.splice(idx, 1);
     }
@@ -3017,6 +3164,18 @@ export class HollowWarEngine {
       return {
         card,
         summaryText: 'Etch Inscription',
+      };
+    }
+    if (card.category === 'morph') {
+      return {
+        card,
+        summaryText: 'Art Morph',
+      };
+    }
+    if (card.category === 'passive_domain') {
+      return {
+        card,
+        summaryText: 'Passive Tome',
       };
     }
     if (card.category === 'art_archetype') {
@@ -3090,11 +3249,31 @@ export class HollowWarEngine {
       return;
     }
 
+    if (card.category === 'morph' && card.artId) {
+      this.openMorphForArt(card.artId);
+      return;
+    }
+
     if (card.category === 'art_archetype' && card.archetype) {
       this.openArtSelectForArchetype(card.archetype as ArtArchetypeFilter);
       return;
     }
 
+    if (card.category === 'passive_domain' && card.passiveDomain) {
+      this.openPassiveSelectForDomain(card.passiveDomain);
+      return;
+    }
+
+    this.applyAcquiredUpgradeCard(card);
+    if (this.phase === 'art_morph') return;
+
+    this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
+    this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
+
+    this.setPhase('playing');
+  }
+
+  private applyAcquiredUpgradeCard(card: UpgradeCardDef): void {
     const stacks = (this.acquiredCards.get(card.id) ?? 0) + 1;
     this.acquiredCards.set(card.id, stacks);
 
@@ -3107,37 +3286,83 @@ export class HollowWarEngine {
     }
 
     if (card.category === 'art' && card.artId) {
-      this.addOrRankArt(card.artId);
+      const updated = this.addOrRankArt(card.artId);
+      if (updated.level >= ART_MORPH_TRIGGER_RANK && !updated.morph) {
+        this.openMorphForArt(card.artId);
+      }
+    }
+  }
+
+  private openPassiveSelectForDomain(domain: PassiveDomain): void {
+    const cached = this.cachedPassiveOffers.get(domain);
+    if (cached) {
+      this.passiveSelectChoice = cached;
+      this.setPhase('passive_select');
+      return;
     }
 
+    const pool = [...this.getEligiblePassivesForDomain(domain)];
+    if (pool.length === 0) {
+      this.setPhase('playing');
+      return;
+    }
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const chosen = pool.slice(0, 4);
+    const options = chosen.map((card) => {
+      const opt = this.buildDraftOption(card);
+      return {
+        card,
+        stacks: this.acquiredCards.get(card.id) ?? 0,
+        dpsDeltaPct: opt.dpsDeltaPct ?? 0,
+        summaryText: opt.summaryText,
+      };
+    });
+
+    const labelMap: Record<PassiveDomain, string> = {
+      elemental: 'Elemental & Chaos',
+      martial: 'Martial & Speed',
+      constructs: 'Constructs & Ailments',
+      bastion: 'Bastion & Utility',
+    };
+    const state: PassiveSelectChoiceState = { domain, label: labelMap[domain], options };
+    this.cachedPassiveOffers.set(domain, state);
+    this.passiveSelectChoice = state;
+    this.setPhase('passive_select');
+  }
+
+  pickPassiveChoice(cardId: string): void {
+    if (!this.passiveSelectChoice) return;
+    const found = this.passiveSelectChoice.options.find((o) => o.card.id === cardId);
+    if (!found) return;
+    this.passiveSelectChoice = null;
+    this.clearSubOfferCaches();
+    this.applyAcquiredUpgradeCard(found.card);
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
-
     this.setPhase('playing');
   }
 
-  private openArtSelectForArchetype(archetype: ArtArchetypeFilter, excludeIds: Set<string> = new Set()): void {
-    const allEligible = this.getEligibleArtsForArchetype(archetype);
+  private openArtSelectForArchetype(archetype: ArtArchetypeFilter): void {
+    const cached = this.cachedArtOffers.get(archetype);
+    if (cached) {
+      this.artSelectChoice = cached;
+      this.setPhase('art_select');
+      return;
+    }
+
+    const allEligible = [...this.getEligibleArtsForArchetype(archetype)];
     if (allEligible.length === 0) {
       this.setPhase('playing');
       return;
     }
-    let pool = allEligible.filter((d) => !excludeIds.has(d.id));
-    if (pool.length < Math.min(4, allEligible.length)) {
-      const rest = allEligible.filter((d) => !pool.includes(d));
-      for (let i = rest.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rest[i], rest[j]] = [rest[j], rest[i]];
-      }
-      pool = [...pool, ...rest];
-    } else {
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
+    for (let i = allEligible.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allEligible[i], allEligible[j]] = [allEligible[j], allEligible[i]];
     }
-    // Sort active Arts slightly forward so rank-ups are easy to spot, then take up to 4
-    const chosen = pool.slice(0, 4);
+    const chosen = allEligible.slice(0, 4);
     const beforeDps = this.getTotalEstimatedDps();
 
     const options = chosen.map((artDef) => {
@@ -3147,13 +3372,13 @@ export class HollowWarEngine {
 
       let afterDps = 0;
       for (const ar of this.arts) {
-        const d = ARTS[ar.artId];
+        const d = this.getEffectiveArtSpec(ar);
         const extraMods = [...this.getArtExtraMods(ar)];
         if (ar.artId === artDef.id) {
           extraMods.push(...getArtRankStep(ar.artId, nextRank).mods);
         }
-        const extraConvs = ar.inscriptions.flatMap((i) => i.conversions ?? []);
-        const extraExtras = ar.inscriptions.flatMap((i) => i.extras ?? []);
+        const extraConvs = [...ar.inscriptions.flatMap((i) => i.conversions ?? []), ...(ar.morph?.conversions ?? [])];
+        const extraExtras = [...ar.inscriptions.flatMap((i) => i.extras ?? []), ...(ar.morph?.extras ?? [])];
         const echoMult = 1 + ar.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
         afterDps += previewSkillDps(this.sheet, d, extraMods, d.baseProjectiles, extraConvs, extraExtras, echoMult).estimatedDps;
       }
@@ -3174,48 +3399,113 @@ export class HollowWarEngine {
       attack: 'Attack',
       construct: 'Constructs',
     };
-    this.artSelectChoice = { archetype, label: labelMap[archetype], options };
+    const state: ArtSelectChoiceState = { archetype, label: labelMap[archetype], options };
+    this.cachedArtOffers.set(archetype, state);
+    this.artSelectChoice = state;
     this.setPhase('art_select');
   }
 
   pickArtChoice(artId: string): void {
     if (!this.artSelectChoice) return;
-    this.addOrRankArt(artId);
+    const updated = this.addOrRankArt(artId);
     this.artSelectChoice = null;
+    this.clearSubOfferCaches();
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
+    if (updated.level >= ART_MORPH_TRIGGER_RANK && !updated.morph) {
+      this.openMorphForArt(artId);
+      return;
+    }
     this.setPhase('playing');
   }
 
-  private openInscribeForArt(artId: string, excludeIds: Set<string> = new Set()): void {
+  openMorphForArt(artId: string): void {
+    const art = this.arts.find((a) => a.artId === artId);
+    if (!art || art.morph) {
+      this.setPhase('playing');
+      return;
+    }
+    const [routeA, routeB] = getArtMorphRoutes(artId);
+    const beforeArtDps = this.getArtPreview(art).estimatedDps;
+    const calcRoute = (morph: ArtMorphDef) => {
+      const base = ARTS[art.artId];
+      const morphedSpec: ArtDefinition = {
+        ...base,
+        behavior: morph.overrideBehavior ?? base.behavior,
+        baseProjectiles: base.baseProjectiles + (morph.extraProjectiles ?? 0),
+        baseRadius: morph.overrideRadius ?? base.baseRadius,
+        baseCooldown: morph.overrideCooldown ?? base.baseCooldown,
+        tags: morph.addTags ? [...new Set([...base.tags, ...morph.addTags])] : base.tags,
+      };
+      const extraMods = [...this.getArtExtraMods(art), ...morph.mods];
+      const extraConvs = [...art.inscriptions.flatMap((i) => i.conversions ?? []), ...(morph.conversions ?? [])];
+      const extraExtras = [...art.inscriptions.flatMap((i) => i.extras ?? []), ...(morph.extras ?? [])];
+      const echoMult = 1 + art.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0);
+      const afterDps = previewSkillDps(
+        this.sheet,
+        morphedSpec,
+        extraMods,
+        morphedSpec.baseProjectiles,
+        extraConvs,
+        extraExtras,
+        echoMult,
+      ).estimatedDps;
+      const dpsDeltaPct = beforeArtDps > 0 ? ((afterDps - beforeArtDps) / beforeArtDps) * 100 : 0;
+      return { morph, dpsDeltaPct };
+    };
+    this.artMorphChoice = {
+      artId,
+      routes: [calcRoute(routeA), calcRoute(routeB)],
+    };
+    this.setPhase('art_morph');
+  }
+
+  pickArtMorph(morphId: string): void {
+    if (!this.artMorphChoice) return;
+    const art = this.arts.find((a) => a.artId === this.artMorphChoice!.artId);
+    const chosen = this.artMorphChoice.routes.find((r) => r.morph.id === morphId)?.morph;
+    if (art && chosen) {
+      art.morph = chosen;
+    }
+    this.artMorphChoice = null;
+    this.clearSubOfferCaches();
+    this.setPhase('playing');
+  }
+
+  private openInscribeForArt(artId: string): void {
+    const cached = this.cachedInscribeOffers.get(artId);
+    if (cached) {
+      this.inscribeChoice = cached;
+      this.setPhase('inscribe');
+      return;
+    }
+
     const art = this.arts.find((a) => a.artId === artId);
     if (!art) {
       this.setPhase('playing');
       return;
     }
-    const def = ARTS[art.artId];
-    const allCompatible = this.getCompatibleInscriptions(art);
-    let pool = allCompatible.filter((i) => !excludeIds.has(i.id));
-    if (pool.length < Math.min(4, allCompatible.length)) {
-      const rest = allCompatible.filter((i) => !pool.includes(i));
-      for (let i = rest.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [rest[i], rest[j]] = [rest[j], rest[i]];
-      }
-      pool = [...pool, ...rest];
-    } else {
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
+    const def = this.getEffectiveArtSpec(art);
+    const pool = [...this.getCompatibleInscriptions(art)];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     const chosen = pool.slice(0, 4);
     const beforeArtDps = this.getArtPreview(art).estimatedDps;
 
     const options = chosen.map((ins) => {
       const extraMods = [...this.getArtExtraMods(art), ...ins.mods];
-      const extraConvs = [...art.inscriptions.flatMap((i) => i.conversions ?? []), ...(ins.conversions ?? [])];
-      const extraExtras = [...art.inscriptions.flatMap((i) => i.extras ?? []), ...(ins.extras ?? [])];
+      const extraConvs = [
+        ...art.inscriptions.flatMap((i) => i.conversions ?? []),
+        ...(art.morph?.conversions ?? []),
+        ...(ins.conversions ?? []),
+      ];
+      const extraExtras = [
+        ...art.inscriptions.flatMap((i) => i.extras ?? []),
+        ...(art.morph?.extras ?? []),
+        ...(ins.extras ?? []),
+      ];
       const echoMult = 1 + art.inscriptions.reduce((s, i) => s + (i.echoChance ?? 0), 0) + (ins.echoChance ?? 0);
       const afterArtDps = previewSkillDps(
         this.sheet,
@@ -3230,7 +3520,9 @@ export class HollowWarEngine {
       return { ins, dpsDeltaPct };
     });
 
-    this.inscribeChoice = { artId, options };
+    const state: InscribeChoiceState = { artId, options };
+    this.cachedInscribeOffers.set(artId, state);
+    this.inscribeChoice = state;
     this.setPhase('inscribe');
   }
 
@@ -3243,6 +3535,7 @@ export class HollowWarEngine {
       target.inscriptions.push(ins);
     }
     this.inscribeChoice = null;
+    this.clearSubOfferCaches();
     this.player.life = Math.min(this.sheet.get('life'), this.player.life + 10);
     this.player.ward = Math.min(this.sheet.get('ward'), this.player.ward);
     this.setPhase('playing');

@@ -144,9 +144,13 @@ export function renderModal(
                   ? `<span style="font-size:12px;color:#38bdf8;font-weight:700">Choose from 4 Runes</span>`
                   : card.category === 'art_archetype'
                     ? `<span style="font-size:12px;color:#fbbf24;font-weight:700">Choose from 4 Arts</span>`
-                    : dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
-                      ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
-                      : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
+                    : card.category === 'passive_domain'
+                      ? `<span style="font-size:12px;color:#86efac;font-weight:700">Choose from 4 Passives</span>`
+                      : card.category === 'morph'
+                        ? `<span style="font-size:12px;color:#e879f9;font-weight:700">2 Hollow Wake Routes</span>`
+                        : dpsDeltaPct !== undefined && Math.abs(dpsDeltaPct) >= 0.5
+                          ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
+                          : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
 
               const rarityClass = card.rarity === 'oath' ? 'rarity-keystone' : `rarity-${card.rarity}`;
               const currentStacks = engine.acquiredCards.get(card.id) ?? 0;
@@ -183,7 +187,7 @@ export function renderModal(
                   </div>
                   <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
                     ${deltaHtml}
-                    <span style="font-size:12px;font-weight:700;color:#fbbf24">${card.category === 'inscription' ? 'Select Rune →' : card.category === 'art_archetype' ? 'Select Art →' : 'Claim →'}</span>
+                    <span style="font-size:12px;font-weight:700;color:#fbbf24">${card.category === 'inscription' ? 'Select Rune →' : card.category === 'art_archetype' ? 'Select Art →' : card.category === 'passive_domain' ? 'Select Passive →' : card.category === 'morph' ? 'Morph Art →' : 'Claim →'}</span>
                   </div>
                 </div>
               `;
@@ -216,9 +220,6 @@ export function renderModal(
           <div class="modal-title" style="color:#fbbf24">Select ${label} Art</div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn" id="btn-art-back">← Back to Draft</button>
-            <button class="btn" id="btn-art-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
-              Reroll (${engine.player.rerolls} left)
-            </button>
           </div>
         </div>
         <div class="modal-subtitle">
@@ -266,7 +267,110 @@ export function renderModal(
       });
     });
     container.querySelector('#btn-art-back')?.addEventListener('click', () => engine.backFromArtSelect());
-    container.querySelector('#btn-art-reroll')?.addEventListener('click', () => engine.rerollArtSelect());
+    return;
+  }
+
+  if (engine.phase === 'passive_select' && engine.passiveSelectChoice) {
+    const { label, options } = engine.passiveSelectChoice;
+    container.innerHTML = `
+      <div class="modal-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="modal-title" style="color:#86efac">Select ${label} Passive</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btn-passive-back">← Back to Draft</button>
+          </div>
+        </div>
+        <div class="modal-subtitle">
+          Choose one ${label} passive offering to bind to your build.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          ${options
+            .map(({ card, stacks, dpsDeltaPct }) => {
+              const deltaHtml =
+                Math.abs(dpsDeltaPct) >= 0.5
+                  ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Est. DPS</span>`
+                  : `<span style="font-size:12px;color:#94a3b8">Utility / Endurance</span>`;
+              const rankBadge =
+                card.maxStacks && card.maxStacks > 1
+                  ? `<span style="font-size:11px;color:#93c5fd;margin-left:6px">(Rank ${stacks + 1}/${card.maxStacks})</span>`
+                  : '';
+              return `
+                <div class="choice-card rarity-${card.rarity}" data-passive-pick="${card.id}">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                      <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:#86efac">${label}</span>
+                      <span style="font-size:10px;text-transform:uppercase;color:#94a3b8">${card.rarity}</span>
+                    </div>
+                    <div style="font-size:16px;font-weight:800;margin-bottom:8px">${card.name}${rankBadge}</div>
+                    <div style="font-size:12px;color:#e2e8f0;line-height:1.45;margin-bottom:10px">${card.description}</div>
+                    <div class="tag-row">
+                      ${card.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                    ${deltaHtml}
+                    <span style="font-size:12px;font-weight:700;color:#86efac">Bind →</span>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll<HTMLElement>('[data-passive-pick]').forEach((el) => {
+      el.addEventListener('click', () => {
+        engine.pickPassiveChoice(el.dataset.passivePick!);
+      });
+    });
+    container.querySelector('#btn-passive-back')?.addEventListener('click', () => engine.backFromPassiveSelect());
+    return;
+  }
+
+  if (engine.phase === 'art_morph' && engine.artMorphChoice) {
+    const targetDef = ARTS[engine.artMorphChoice.artId];
+    container.innerHTML = `
+      <div class="modal-card">
+        <div class="modal-title" style="color:#e879f9;margin-bottom:6px">Morph ${targetDef.name}</div>
+        <div class="modal-subtitle">
+          ${targetDef.name} has reached Rank Mastery! Choose one of two Hollow Wake evolutionary paths to permanently transform this Art.
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+          ${engine.artMorphChoice.routes
+            .map(({ morph, dpsDeltaPct }) => {
+              const deltaHtml =
+                Math.abs(dpsDeltaPct) >= 0.5
+                  ? `<span class="${dpsDeltaPct >= 0 ? 'delta-positive' : 'delta-negative'}">${dpsDeltaPct >= 0 ? '+' : ''}${dpsDeltaPct.toFixed(1)}% Art DPS</span>`
+                  : `<span style="font-size:12px;color:#c084fc">Transformative Form</span>`;
+              return `
+                <div class="choice-card rarity-mythic" data-morph-pick="${morph.id}" style="border-color:${morph.color}99">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                      <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:${morph.color}">
+                        ${morph.routeKind === 'theme' ? 'Path I · Perfected Discipline' : 'Path II · Radical Transformation'}
+                      </span>
+                    </div>
+                    <div style="font-size:19px;font-weight:800;margin-bottom:8px;color:${morph.color}">${morph.name}</div>
+                    <div style="font-size:13px;color:#e2e8f0;line-height:1.5;margin-bottom:12px">${morph.description}</div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(148,163,184,0.14);padding-top:10px;margin-top:6px">
+                    ${deltaHtml}
+                    <span style="font-size:12px;font-weight:700;color:${morph.color}">Ascend →</span>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll<HTMLElement>('[data-morph-pick]').forEach((el) => {
+      el.addEventListener('click', () => {
+        engine.pickArtMorph(el.dataset.morphPick!);
+      });
+    });
     return;
   }
 
@@ -279,9 +383,6 @@ export function renderModal(
           <div class="modal-title" style="color:${targetDef.color}">Inscribe ${targetDef.name}</div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn" id="btn-inscribe-back">← Back to Draft</button>
-            <button class="btn" id="btn-inscribe-reroll" ${engine.player.rerolls <= 0 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
-              Reroll (${engine.player.rerolls} left)
-            </button>
           </div>
         </div>
         <div class="modal-subtitle">
@@ -320,7 +421,6 @@ export function renderModal(
       });
     });
     container.querySelector('#btn-inscribe-back')?.addEventListener('click', () => engine.backFromInscribe());
-    container.querySelector('#btn-inscribe-reroll')?.addEventListener('click', () => engine.rerollInscribe());
     return;
   }
 

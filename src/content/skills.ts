@@ -2,7 +2,9 @@ import type { SkillDamageSpec } from '../sdk/combat-resolver.ts';
 import type { ConversionRule, ExtraDamageRule, Modifier, SkillTag } from '../sdk/types.ts';
 
 export const MAX_ACTIVE_ARTS = 4;
-export const MAX_ART_RANK = 8;
+/** Adjustable Art rank cap; reaching this rank triggers the Art's two-route Morph choice. */
+export const MAX_ART_RANK = 6;
+export const ART_MORPH_TRIGGER_RANK = MAX_ART_RANK;
 export const MAX_INSCRIPTIONS_PER_ART = 2;
 
 export type ArtBehavior =
@@ -28,6 +30,7 @@ export interface ArtDefinition extends SkillDamageSpec {
   behavior: ArtBehavior;
   baseProjectiles: number;
   baseRadius: number;
+  baseSweepArc?: number;
   projectileSpeed?: number;
   baseDuration?: number;
   staggerDelay?: number;
@@ -492,18 +495,17 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'heavy_strike',
     name: 'Heavy Strike',
     description:
-      'Winds up briefly before driving a narrow, long-reaching crushing blow with lethal Armor Penetration and Critical impact.',
+      'A deliberate, heavy-cooldown overhead cleave carving a narrow, extended-reach arc with crushing Physical impact.',
     color: '#e2e8f0',
-    behavior: 'thrust',
-    baseDamage: { physical: 72 },
-    damageEffectiveness: 1.85,
-    baseCooldown: 1.48,
+    behavior: 'sweep',
+    baseDamage: { physical: 88 },
+    damageEffectiveness: 2.1,
+    baseCooldown: 2.05,
     baseCritChance: 0.14,
     baseProjectiles: 1,
     baseRadius: 195,
-    windupDelay: 0.28,
-    thrustHalfWidth: 22,
-    tags: ['attack', 'physical'],
+    baseSweepArc: Math.PI * 0.3,
+    tags: ['attack', 'aoe', 'physical'],
   },
   earthquake: {
     id: 'earthquake',
@@ -1791,4 +1793,447 @@ export function getArtModsForRank(artId: string, level: number): Modifier[] {
     mods.push(...getArtRankStep(artId, r).mods);
   }
   return mods;
+}
+
+export interface ArtMorphDef {
+  id: string;
+  name: string;
+  shortName: string;
+  routeKind: 'theme' | 'transform';
+  description: string;
+  color: string;
+  mods: Modifier[];
+  conversions?: ConversionRule[];
+  extras?: ExtraDamageRule[];
+  addTags?: SkillTag[];
+  overrideBehavior?: ArtBehavior;
+  extraProjectiles?: number;
+  overrideRadius?: number;
+  overrideCooldown?: number;
+  explodeRadius?: number;
+  explodeScale?: number;
+  returnBoomerang?: boolean;
+  forceHoming?: boolean;
+  splitOnHit?: number;
+  aftershockDelay?: number;
+  aftershockScale?: number;
+  aftershockCount?: number;
+  sweepArcScale?: number;
+  executeBonus?: number;
+  minionCleaveRadius?: number;
+  minionSpeedScale?: number;
+}
+
+export const ART_MORPHS: Record<string, [ArtMorphDef, ArtMorphDef]> = {
+  cleave: [
+    {
+      id: 'readied_cleave',
+      name: 'Readied Cleave',
+      shortName: 'Readied Cleave',
+      routeKind: 'theme',
+      description: 'Masters Hollow Wake’s berserking melee rhythm: +30% More Attack Damage, +35% Bleed Chance, +25% Area, +15% Attack Speed, and +3% Life Leech.',
+      color: '#f59e0b',
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.3, tags: ['attack'] },
+        { stat: 'bleedChance', kind: 'flat', value: 0.35 },
+        { stat: 'area', kind: 'inc', value: 0.25 },
+        { stat: 'attackSpeed', kind: 'inc', value: 0.15 },
+        { stat: 'lifeLeech', kind: 'flat', value: 0.03 },
+      ],
+    },
+    {
+      id: 'unbound_cleave',
+      name: 'Unbound Cleave',
+      shortName: 'Unbound Axe',
+      routeKind: 'transform',
+      description: 'Hurls twin whirling Cleave axes as Boomerang projectiles that erupt in a 72px blast on hit (+35% More Damage).',
+      color: '#fb7185',
+      overrideBehavior: 'projectile',
+      returnBoomerang: true,
+      extraProjectiles: 1,
+      explodeRadius: 72,
+      explodeScale: 0.65,
+      addTags: ['projectile'],
+      mods: [{ stat: 'damage', kind: 'more', value: 0.35 }],
+    },
+  ],
+  heavy_strike: [
+    {
+      id: 'verdicts_edge',
+      name: "Verdict's Edge",
+      shortName: "Verdict's Edge",
+      routeKind: 'theme',
+      description: 'Perfected executioner overhead: +35% More Damage, +25% Armor Pen, +10% Crit Chance, and +40% More Damage vs wounded foes.',
+      color: '#e2e8f0',
+      executeBonus: 0.4,
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.35 },
+        { stat: 'armorPen', kind: 'flat', value: 0.25 },
+        { stat: 'critChance', kind: 'flat', value: 0.1 },
+      ],
+    },
+    {
+      id: 'faultbreaker_maul',
+      name: 'Faultbreaker Slam',
+      shortName: 'Faultbreaker',
+      routeKind: 'transform',
+      description: 'Widens the strike cone by 65% and triggers a delayed seismic aftershock (85% Damage, +30% Area, +20% More Damage).',
+      color: '#f59e0b',
+      sweepArcScale: 1.65,
+      aftershockDelay: 0.45,
+      aftershockScale: 0.85,
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.2 },
+        { stat: 'area', kind: 'inc', value: 0.3 },
+      ],
+    },
+  ],
+  earthquake: [
+    {
+      id: 'rolling_quake_morph',
+      name: 'Rolling Quake',
+      shortName: 'Rolling Quake',
+      routeKind: 'theme',
+      description: 'Unleashes 3 rhythmic seismic pulses every 0.45s across +25% Area (+20% More Damage).',
+      color: '#d97706',
+      aftershockDelay: 0.45,
+      aftershockScale: 0.9,
+      aftershockCount: 3,
+      mods: [
+        { stat: 'area', kind: 'inc', value: 0.25 },
+        { stat: 'damage', kind: 'more', value: 0.2 },
+      ],
+    },
+    {
+      id: 'buried_verdict_morph',
+      name: 'Buried Verdict',
+      shortName: 'Buried Verdict',
+      routeKind: 'transform',
+      description: 'Channels every tremor into a colossal 320% Damage aftershock across +45% Area with +25% Armor Penetration.',
+      color: '#fbbf24',
+      aftershockDelay: 1.15,
+      aftershockScale: 3.2,
+      aftershockCount: 1,
+      mods: [
+        { stat: 'area', kind: 'inc', value: 0.45 },
+        { stat: 'armorPen', kind: 'flat', value: 0.25 },
+      ],
+    },
+  ],
+  firebolt: [
+    {
+      id: 'cinder_lance',
+      name: 'Cinder Lance',
+      shortName: 'Cinder Lance',
+      routeKind: 'theme',
+      description: 'Lances straight through ranks: +2 Pierce, +45% Ignite Chance, +30% More Fire Damage, and +15% Fire Pen.',
+      color: '#f97316',
+      mods: [
+        { stat: 'pierceCount', kind: 'flat', value: 2 },
+        { stat: 'igniteChance', kind: 'flat', value: 0.45 },
+        { stat: 'fireDamage', kind: 'more', value: 0.3 },
+        { stat: 'firePen', kind: 'flat', value: 0.15 },
+      ],
+    },
+    {
+      id: 'ember_satellites',
+      name: 'Ember Satellites',
+      shortName: 'Satellites',
+      routeKind: 'transform',
+      description: 'Transforms Firebolt into orbiting flame satellites (+2 Orbs) that endlessly carve around your vessel (+20% More Damage, +25% Area).',
+      color: '#fb923c',
+      overrideBehavior: 'orbit',
+      extraProjectiles: 2,
+      overrideRadius: 78,
+      overrideCooldown: 0.42,
+      addTags: ['orbit', 'aoe'],
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.2 },
+        { stat: 'area', kind: 'inc', value: 0.25 },
+      ],
+    },
+  ],
+  fireball: [
+    {
+      id: 'pyreheart_blast',
+      name: 'Pyreheart Detonation',
+      shortName: 'Pyreheart',
+      routeKind: 'theme',
+      description: 'Massively amplifies blast radius (+45% Area) and cinder burn (+35% More Fire Damage, +45% Ignite Chance).',
+      color: '#ea580c',
+      explodeRadius: 120,
+      explodeScale: 0.9,
+      mods: [
+        { stat: 'area', kind: 'inc', value: 0.45 },
+        { stat: 'fireDamage', kind: 'more', value: 0.35 },
+        { stat: 'igniteChance', kind: 'flat', value: 0.45 },
+      ],
+    },
+    {
+      id: 'meteor_cascade',
+      name: 'Meteor Cascade',
+      shortName: 'Cascade',
+      routeKind: 'transform',
+      description: 'Fires +1 extra Fireball and splinters each impact into 3 explosive cinder shards (+20% Projectile Speed).',
+      color: '#facc15',
+      splitOnHit: 3,
+      mods: [
+        { stat: 'projectileCount', kind: 'flat', value: 1 },
+        { stat: 'projectileSpeed', kind: 'inc', value: 0.2 },
+      ],
+    },
+  ],
+  summon_skeleton: [
+    {
+      id: 'grave_phalanx',
+      name: 'Grave Phalanx',
+      shortName: 'Grave Phalanx',
+      routeKind: 'theme',
+      description: 'Armors your skeletal host into cleaving iron sentinels (wide melee cleave, +30% More Damage, +20% Duration, +15 Armor).',
+      color: '#e2e8f0',
+      minionCleaveRadius: 56,
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.3 },
+        { stat: 'projectileDuration', kind: 'inc', value: 0.2 },
+        { stat: 'armor', kind: 'flat', value: 15 },
+      ],
+    },
+    {
+      id: 'runebound_duelists',
+      name: 'Runebound Duelists',
+      shortName: 'Duelists',
+      routeKind: 'transform',
+      description: 'Converts 50% of Physical to Chaos and accelerates your host into agile spellsword duelists (+1 Summon, +35% Attack Speed, +35% Minion Speed).',
+      color: '#c084fc',
+      minionSpeedScale: 1.35,
+      conversions: [{ from: 'physical', to: 'chaos', ratio: 0.5 }],
+      addTags: ['chaos'],
+      mods: [
+        { stat: 'projectileCount', kind: 'flat', value: 1 },
+        { stat: 'attackSpeed', kind: 'inc', value: 0.35 },
+        { stat: 'critChance', kind: 'flat', value: 0.1 },
+      ],
+    },
+  ],
+  summon_bone_golem: [
+    {
+      id: 'osseous_juggernaut',
+      name: 'Osseous Juggernaut',
+      shortName: 'Juggernaut',
+      routeKind: 'theme',
+      description: 'Forges a towering siege frame: +45% More Damage, +45% Slam Area, +25% Attack Speed, and +20% Armor Pen.',
+      color: '#d6d3d1',
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.45 },
+        { stat: 'area', kind: 'inc', value: 0.45 },
+        { stat: 'attackSpeed', kind: 'inc', value: 0.25 },
+        { stat: 'armorPen', kind: 'flat', value: 0.2 },
+      ],
+    },
+    {
+      id: 'living_ossuary',
+      name: 'Living Ossuary',
+      shortName: 'Living Ossuary',
+      routeKind: 'transform',
+      description: 'Binds the golem as a protective ossuary bastion: +55 Maximum Ward, +6 Ward Regen/s, +4% Minion Life Leech, and +1 Golem.',
+      color: '#38bdf8',
+      mods: [
+        { stat: 'ward', kind: 'flat', value: 55 },
+        { stat: 'wardRegen', kind: 'flat', value: 6 },
+        { stat: 'lifeLeech', kind: 'flat', value: 0.04 },
+        { stat: 'projectileCount', kind: 'flat', value: 1 },
+      ],
+    },
+  ],
+  shambling_horde: [
+    {
+      id: 'blighted_shamblers',
+      name: 'Blighted Detonation',
+      shortName: 'Blighted Blast',
+      routeKind: 'theme',
+      description: 'Swells Grave Shambler explosions by +45% Area, +55% Poison Chance, and +30% More Damage.',
+      color: '#84cc16',
+      mods: [
+        { stat: 'area', kind: 'inc', value: 0.45 },
+        { stat: 'poisonChance', kind: 'flat', value: 0.55 },
+        { stat: 'damage', kind: 'more', value: 0.3 },
+      ],
+    },
+    {
+      id: 'shambling_cadence',
+      name: 'Twin Shamblers',
+      shortName: 'Twin Shamblers',
+      routeKind: 'transform',
+      description: 'Raises +1 extra Grave Shambler per cast with +30% Cooldown Recovery and +30% Minion Speed.',
+      color: '#fb923c',
+      minionSpeedScale: 1.3,
+      mods: [
+        { stat: 'projectileCount', kind: 'flat', value: 1 },
+        { stat: 'cooldownRecovery', kind: 'inc', value: 0.3 },
+      ],
+    },
+  ],
+  poison_nova: [
+    {
+      id: 'plagueheart_ring',
+      name: 'Plagueheart Ring',
+      shortName: 'Plagueheart',
+      routeKind: 'theme',
+      description: 'Fires +4 Nova Projectiles with +50% Poison Chance, +35% DoT Damage, and +20% More Chaos Damage.',
+      color: '#84cc16',
+      mods: [
+        { stat: 'projectileCount', kind: 'flat', value: 4 },
+        { stat: 'poisonChance', kind: 'flat', value: 0.5 },
+        { stat: 'dotDamage', kind: 'inc', value: 0.35 },
+        { stat: 'chaosDamage', kind: 'more', value: 0.2 },
+      ],
+    },
+    {
+      id: 'seeking_miasma',
+      name: 'Seeking Miasma',
+      shortName: 'Seeking Miasma',
+      routeKind: 'transform',
+      description: 'Grants homing guidance, +2 Pierce, and +30% Duration so the toxic ring hunts down stragglers (+20% More Damage).',
+      color: '#a855f7',
+      forceHoming: true,
+      mods: [
+        { stat: 'pierceCount', kind: 'flat', value: 2 },
+        { stat: 'projectileDuration', kind: 'inc', value: 0.3 },
+        { stat: 'damage', kind: 'more', value: 0.2 },
+      ],
+    },
+  ],
+  chain_lightning: [
+    {
+      id: 'tempest_arc',
+      name: 'Tempest Arc',
+      shortName: 'Tempest Arc',
+      routeKind: 'theme',
+      description: 'Arcs across +3 additional enemies with +45% Shock Chance and +30% More Lightning Damage.',
+      color: '#38bdf8',
+      mods: [
+        { stat: 'chainCount', kind: 'flat', value: 3 },
+        { stat: 'shockChance', kind: 'flat', value: 0.45 },
+        { stat: 'lightningDamage', kind: 'more', value: 0.3 },
+      ],
+    },
+    {
+      id: 'storm_discharge',
+      name: 'Overloaded Discharge',
+      shortName: 'Discharge Ring',
+      routeKind: 'transform',
+      description: 'Transforms Chain Lightning into a massive 200px storm nova around you (+45% More Damage, +35% Area).',
+      color: '#fde047',
+      overrideBehavior: 'nova',
+      overrideRadius: 200,
+      addTags: ['nova', 'aoe'],
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.45 },
+        { stat: 'area', kind: 'inc', value: 0.35 },
+      ],
+    },
+  ],
+  frostbolt: [
+    {
+      id: 'winter_lance',
+      name: 'Winter Lance',
+      shortName: 'Winter Lance',
+      routeKind: 'theme',
+      description: 'Pierces +2 targets with +12% Base Crit Chance, +35% Crit Multiplier, and +25% More Cold Damage.',
+      color: '#7dd3fc',
+      mods: [
+        { stat: 'pierceCount', kind: 'flat', value: 2 },
+        { stat: 'critChance', kind: 'flat', value: 0.12 },
+        { stat: 'critMulti', kind: 'flat', value: 0.35 },
+        { stat: 'coldDamage', kind: 'more', value: 0.25 },
+      ],
+    },
+    {
+      id: 'rime_satellites',
+      name: 'Rime Satellites',
+      shortName: 'Rime Orbs',
+      routeKind: 'transform',
+      description: 'Transforms Frostbolt into orbiting frost satellites (+2 Orbs) that chill everything around you (+25% More Damage).',
+      color: '#67e8f9',
+      overrideBehavior: 'orbit',
+      extraProjectiles: 2,
+      overrideRadius: 82,
+      overrideCooldown: 0.44,
+      addTags: ['orbit', 'aoe'],
+      mods: [
+        { stat: 'damage', kind: 'more', value: 0.25 },
+        { stat: 'chillChance', kind: 'flat', value: 0.4 },
+      ],
+    },
+  ],
+};
+
+export function getArtMorphRoutes(artId: string): [ArtMorphDef, ArtMorphDef] {
+  const custom = ART_MORPHS[artId];
+  if (custom) return custom;
+  const def = ARTS[artId];
+  const color = def?.color ?? '#fbbf24';
+  const isAttack = def?.tags.includes('attack');
+  const isProjectile = def?.tags.includes('projectile');
+  const isMinion = def?.tags.includes('minion');
+
+  const routeA: ArtMorphDef = {
+    id: `${artId}_perfected`,
+    name: `Perfected ${def?.name ?? 'Art'}`,
+    shortName: 'Perfected',
+    routeKind: 'theme',
+    description: 'Pushes the Art’s core form to mastery: +32% More Damage, +20% Area, +15% Attack & Cast Speed, and +8% Crit Chance.',
+    color,
+    mods: [
+      { stat: 'damage', kind: 'more', value: 0.32 },
+      { stat: 'area', kind: 'inc', value: 0.2 },
+      { stat: isAttack ? 'attackSpeed' : 'castSpeed', kind: 'inc', value: 0.15 },
+      { stat: 'critChance', kind: 'flat', value: 0.08 },
+    ],
+  };
+
+  const routeB: ArtMorphDef = isProjectile
+    ? {
+        id: `${artId}_cascade_morph`,
+        name: `Splitting ${def?.name ?? 'Art'}`,
+        shortName: 'Splitting',
+        routeKind: 'transform',
+        description: 'Fires +2 extra projectiles and splinters hits into 2 homing shards (+15% More Damage).',
+        color: '#c084fc',
+        forceHoming: true,
+        splitOnHit: 2,
+        mods: [
+          { stat: 'projectileCount', kind: 'flat', value: 2 },
+          { stat: 'damage', kind: 'more', value: 0.15 },
+        ],
+      }
+    : isMinion
+      ? {
+          id: `${artId}_overlord`,
+          name: `Horde ${def?.name ?? 'Art'}`,
+          shortName: 'Overlord',
+          routeKind: 'transform',
+          description: '+1 Summon / Construct Count, +25% Cooldown Recovery, and +20% More Minion Damage.',
+          color: '#a855f7',
+          mods: [
+            { stat: 'projectileCount', kind: 'flat', value: 1 },
+            { stat: 'cooldownRecovery', kind: 'inc', value: 0.25 },
+            { stat: 'damage', kind: 'more', value: 0.2 },
+          ],
+        }
+      : {
+          id: `${artId}_cataclysm`,
+          name: `Cataclysmic ${def?.name ?? 'Art'}`,
+          shortName: 'Cataclysm',
+          routeKind: 'transform',
+          description: '+40% Area of Effect, +25% Cooldown Recovery, and +25% More Damage.',
+          color: '#f97316',
+          mods: [
+            { stat: 'area', kind: 'inc', value: 0.4 },
+            { stat: 'cooldownRecovery', kind: 'inc', value: 0.25 },
+            { stat: 'damage', kind: 'more', value: 0.25 },
+          ],
+        };
+
+  return [routeA, routeB];
 }

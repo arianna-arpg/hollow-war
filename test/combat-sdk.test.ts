@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARTS, INSCRIPTIONS, MAX_ACTIVE_ARTS, MAX_INSCRIPTIONS_PER_ART } from '../src/content/skills.ts';
+import { ART_MORPH_TRIGGER_RANK, ARTS, INSCRIPTIONS, MAX_ACTIVE_ARTS, MAX_INSCRIPTIONS_PER_ART } from '../src/content/skills.ts';
 import { HOLLOW_WAR_STAT_RULES } from '../src/content/stats.ts';
 import { HollowWarEngine } from '../src/game/engine.ts';
 import { computeOutgoingByType, previewSkillDps, resolveHit } from '../src/sdk/combat-resolver.ts';
@@ -231,17 +231,16 @@ describe('Hollow War Combat SDK', () => {
     engine.pickDraftOption(0);
     expect(engine.phase).toBe('inscribe');
 
-    const offeredIds = new Set(engine.inscribeChoice!.options.map((o) => o.ins.id));
-    expect(offeredIds.has('hoarfrost_bind')).toBe(false);
-    expect(offeredIds.has('voltaic_arc')).toBe(false);
+    const offeredIds = engine.inscribeChoice!.options.map((o) => o.ins.id);
+    expect(offeredIds.includes('hoarfrost_bind')).toBe(false);
+    expect(offeredIds.includes('voltaic_arc')).toBe(false);
 
-    // Reroll in Inscribe should avoid repeating the exact same set
-    engine.rerollInscribe();
-    const rerolledIds = new Set(engine.inscribeChoice!.options.map((o) => o.ins.id));
-    const allSame = [...offeredIds].every((id) => rerolledIds.has(id));
-    expect(allSame).toBe(false);
-
-    // Back button returns cleanly to draft
+    // Back button returns cleanly to draft, and re-entering keeps the exact same locked sub-offer (no free reroll)
+    engine.backFromInscribe();
+    expect(engine.phase).toBe('draft');
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('inscribe');
+    expect(engine.inscribeChoice!.options.map((o) => o.ins.id)).toEqual(offeredIds);
     engine.backFromInscribe();
     expect(engine.phase).toBe('draft');
   });
@@ -332,10 +331,12 @@ describe('Hollow War Combat SDK', () => {
     expect(spawned[0].life).toBeGreaterThan(8);
   });
 
-  it('supports Shambling Horde zombies, Venom Fang thrust, Heavy Strike windup, Earthquake aftershock, and expanding Blighted Ground', () => {
+  it('supports Shambling Horde zombies, Venom Fang thrust, Heavy Strike narrow long sweep, Earthquake aftershock, and expanding Blighted Ground', () => {
     expect(ARTS.venom_fang.behavior).toBe('thrust');
-    expect(ARTS.heavy_strike.behavior).toBe('thrust');
-    expect(ARTS.heavy_strike.windupDelay).toBeGreaterThan(0.2);
+    expect(ARTS.heavy_strike.behavior).toBe('sweep');
+    expect(ARTS.heavy_strike.baseRadius).toBe(195);
+    expect(ARTS.heavy_strike.baseSweepArc).toBeLessThan(Math.PI * 0.4);
+    expect(ARTS.heavy_strike.baseCooldown).toBeGreaterThanOrEqual(2.0);
     expect(ARTS.earthquake.innateAftershock).toBeDefined();
     expect(ARTS.shambling_horde.behavior).toBe('minion');
 
@@ -535,5 +536,62 @@ describe('Hollow War Combat SDK', () => {
 
     const enemyDist = Math.hypot(engine.enemies[0].x - engine.enemies[1].x, engine.enemies[0].y - engine.enemies[1].y);
     expect(enemyDist).toBeGreaterThan(5);
+  });
+
+  it('triggers two-route Art Morph at ART_MORPH_TRIGGER_RANK and supports locked Passive Domain sub-offers', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('warrior'); // starts with Cleave rank 1
+    const cleave = engine.arts.find((a) => a.artId === 'cleave')!;
+    cleave.level = ART_MORPH_TRIGGER_RANK - 1;
+
+    // Leveling Cleave to ART_MORPH_TRIGGER_RANK opens art_morph with 2 routes
+    engine.openDraft();
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'art_cleave',
+          name: 'Art: Cleave',
+          category: 'art',
+          rarity: 'rare',
+          artId: 'cleave',
+          description: '',
+          tags: ['attack', 'aoe', 'physical'],
+        },
+        summaryText: 'Deepen Art',
+      },
+    ];
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('art_morph');
+    expect(engine.artMorphChoice?.routes.length).toBe(2);
+
+    // Choose Route 2: Unbound Cleave (transforms sweep -> boomerang projectile!)
+    engine.pickArtMorph('unbound_cleave');
+    expect(engine.phase).toBe('playing');
+    expect(cleave.morph?.id).toBe('unbound_cleave');
+    expect(engine.getEffectiveArtSpec(cleave).behavior).toBe('projectile');
+
+    // Verify Passive Domain sub-offers lock when backing out & re-entering
+    engine.openDraft();
+    engine.draftOptions = [
+      {
+        card: {
+          id: 'passive_dom_martial',
+          name: 'Passive: Martial & Speed',
+          category: 'passive_domain',
+          rarity: 'common',
+          passiveDomain: 'martial',
+          description: '',
+          tags: ['physical', 'attack'],
+        },
+        summaryText: 'Passive Tome',
+      },
+    ];
+    engine.pickDraftOption(0);
+    expect(engine.phase).toBe('passive_select');
+    const firstOffer = engine.passiveSelectChoice!.options.map((o) => o.card.id);
+    engine.backFromPassiveSelect();
+    expect(engine.phase).toBe('draft');
+    engine.pickDraftOption(0);
+    expect(engine.passiveSelectChoice!.options.map((o) => o.card.id)).toEqual(firstOffer);
   });
 });

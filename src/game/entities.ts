@@ -1,4 +1,4 @@
-import type { InscriptionDef } from '../content/skills.ts';
+import type { ArtMorphDef, InscriptionDef } from '../content/skills.ts';
 import type { AilmentType, DamageType, Modifier } from '../sdk/types.ts';
 
 export interface EquippedArt {
@@ -6,6 +6,7 @@ export interface EquippedArt {
   level: number;
   cooldownTimer: number;
   inscriptions: InscriptionDef[];
+  morph?: ArtMorphDef;
   getArtMods(): Modifier[];
 }
 

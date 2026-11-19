@@ -41,7 +41,8 @@ function getCooldownProgress(engine: HollowWarEngine, artId: string): { pct: num
 function buildHotbarHtml(engine: HollowWarEngine): string {
   return engine.arts
     .map((ar) => {
-      const def = ARTS[ar.artId];
+      const def = engine.getEffectiveArtSpec(ar);
+      const displayName = ar.morph ? ar.morph.name : def.name;
       const preview = engine.getArtPreview(ar);
       const countText = formatConstructBadge(engine, ar.artId);
       const cd = getCooldownProgress(engine, ar.artId);
@@ -56,6 +57,9 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
                 .join('')}
             </div>`
           : '';
+      const morphTooltip = ar.morph
+        ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(232,121,249,0.28)"><strong style="color:${ar.morph.color}">Morph — ${ar.morph.name}:</strong> <span style="color:#e2e8f0">${ar.morph.description}</span></div>`
+        : '';
 
       return `
         <div class="skill-slot" style="border-color:${def.color}55">
@@ -63,8 +67,8 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
             <div class="skill-cd-fill" data-cd-fill="${ar.artId}" style="width:${cd.pct.toFixed(1)}%;background:${def.color}"></div>
           </div>
           <div class="skill-slot-header" style="position:relative;z-index:1">
-            <span style="color:${def.color}">${def.name}</span>
-            <span>R${ar.level}</span>
+            <span style="color:${ar.morph ? ar.morph.color : def.color}">${displayName}</span>
+            <span>R${ar.level}${ar.morph ? '★' : ''}</span>
           </div>
           <div style="position:relative;z-index:1;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:2px">
             <span>${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}%</span>
@@ -76,6 +80,7 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
               : ''
           }
           <div class="support-pips" style="position:relative;z-index:1">
+            ${ar.morph ? `<span class="support-pip" style="color:${ar.morph.color};border-color:${ar.morph.color}66">${ar.morph.shortName}</span>` : ''}
             ${ar.inscriptions
               .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
               .join('')}
@@ -84,7 +89,7 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
             <div class="skill-cd-bar" data-cd-bar="${ar.artId}" style="width:${cd.pct.toFixed(1)}%;background:${def.color}"></div>
           </div>
           <div class="hw-tooltip">
-            <div style="font-weight:800;color:${def.color};margin-bottom:3px">${def.name} (Rank ${ar.level})</div>
+            <div style="font-weight:800;color:${ar.morph ? ar.morph.color : def.color};margin-bottom:3px">${displayName} (Rank ${ar.level})</div>
             <div style="color:#cbd5e1;margin-bottom:6px">${def.description}</div>
             <div class="tag-row" style="margin-bottom:4px">
               ${def.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}
@@ -92,6 +97,7 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
             <div style="font-size:11px;color:#94a3b8">
               Avg Hit: ${preview.avgHit.toFixed(1)} · ${preview.castsPerSecond.toFixed(2)}/s · Crit ${(preview.critChance * 100).toFixed(0)}% (x${preview.critMulti.toFixed(2)})
             </div>
+            ${morphTooltip}
             ${insTooltip}
           </div>
         </div>
@@ -124,7 +130,7 @@ export function renderHud(
     .padStart(2, '0');
   const estDps = Math.round(engine.getTotalEstimatedDps());
 
-  const hotbarKey = `${engine.sheet.revision}|${engine.arts.map((a) => `${a.artId}:${a.level}:${a.inscriptions.map((i) => i.id).join(',')}`).join(';')}`;
+  const hotbarKey = `${engine.sheet.revision}|${engine.arts.map((a) => `${a.artId}:${a.level}:${a.morph?.id ?? ''}:${a.inscriptions.map((i) => i.id).join(',')}`).join(';')}`;
 
   const ult = engine.vessel.ultimate;
   const ultReady = engine.player.ultimateCooldown <= 0;

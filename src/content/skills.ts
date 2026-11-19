@@ -747,18 +747,19 @@ export const ARTS: Record<string, ArtDefinition> = {
     id: 'shambling_horde',
     name: 'Shambling Horde',
     description:
-      'Summons a Grave Shambler (up to 8 active) that lurches toward the nearest foe and explodes on arrival for area Fire and Chaos damage.',
+      'Summons a Grave Shambler (up to 6 active) on a fixed cooldown that lurches toward the nearest foe and explodes on arrival for area Fire and Chaos damage.',
     color: '#84cc16',
     behavior: 'minion',
-    baseDamage: { fire: 36, chaos: 14 },
-    damageEffectiveness: 1.15,
-    baseCooldown: 0.95,
+    baseDamage: { fire: 28, chaos: 12 },
+    damageEffectiveness: 1.0,
+    baseCooldown: 2.3,
+    cooldownOnly: true,
     baseCritChance: 0.05,
     baseProjectiles: 1,
-    baseRadius: 74,
+    baseRadius: 72,
     baseDuration: 7,
     timedSummon: true,
-    maxSummons: 8,
+    maxSummons: 6,
     tags: ['spell', 'minion', 'aoe', 'fire', 'chaos'],
   },
   blight_zone: {
@@ -1776,7 +1777,7 @@ export function getArtRankStep(artId: string, rank: number): ArtRankStep {
 
     case 'shambling_horde':
       if (r === 3 || r === 6) return { summary: '+1 Grave Shambler, +15% Blast Area, +12% More Damage', mods: [{ stat: 'projectileCount', kind: 'flat', value: 1 }, { stat: 'area', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
-      return { summary: '+20% Area, +15% Cast Speed, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'castSpeed', kind: 'inc', value: 0.15 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
+      return { summary: '+20% Area, +14% Cooldown Recovery, +12% More Damage', mods: [{ stat: 'area', kind: 'inc', value: 0.2 }, { stat: 'cooldownRecovery', kind: 'inc', value: 0.14 }, { stat: 'damage', kind: 'more', value: 0.12 }] };
 
     default:
       return { summary: '+16% More Art Damage', mods: [{ stat: 'damage', kind: 'more', value: 0.16 }] };

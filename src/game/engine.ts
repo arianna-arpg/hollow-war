@@ -569,7 +569,7 @@ export class HollowWarEngine {
         const speedStat = def.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
         const speed = Math.max(0.15, this.sheet.get(speedStat, def.tags, extraMods));
         const cdr = Math.max(0.25, this.sheet.get('cooldownRecovery', def.tags, extraMods));
-        art.cooldownTimer = Math.max(0.08, def.baseCooldown / (speed * cdr));
+        art.cooldownTimer = Math.max(0.08, def.baseCooldown / (def.cooldownOnly ? cdr : speed * cdr));
 
         this.castArt(art, def, extraMods);
 

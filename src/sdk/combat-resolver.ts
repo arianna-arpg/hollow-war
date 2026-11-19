@@ -16,6 +16,7 @@ export interface SkillDamageSpec {
   damageEffectiveness?: number; // multiplier on flat added damage (default 1)
   variance?: number;            // e.g. 0.15 => ±15% roll
   baseCooldown: number;         // seconds
+  cooldownOnly?: boolean;       // scales only with cooldownRecovery, not cast/attack speed
   baseCritChance?: number;      // additive to sheet critChance
   tags: readonly SkillTag[];
 }
@@ -243,7 +244,7 @@ export function previewSkillDps(
   const speedStat = spec.tags.includes('attack') ? 'attackSpeed' : 'castSpeed';
   const speed = Math.max(0.1, sheet.get(speedStat, spec.tags, extraMods));
   const cdr = Math.max(0.2, sheet.get('cooldownRecovery', spec.tags, extraMods));
-  const effectiveCooldown = spec.baseCooldown / (speed * cdr);
+  const effectiveCooldown = spec.baseCooldown / (spec.cooldownOnly ? cdr : speed * cdr);
   const castsPerSecond = 1 / Math.max(0.08, effectiveCooldown);
 
   const projBonus = spec.tags.includes('projectile')

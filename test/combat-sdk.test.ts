@@ -467,4 +467,73 @@ describe('Hollow War Combat SDK', () => {
     engine.update(0.01);
     expect(engine.projectiles.includes(proj)).toBe(false);
   });
+
+  it('separates overlapping minions and enemies side-by-side without disrupting fixedVelocity phalanxes', () => {
+    const engine = new HollowWarEngine();
+    engine.startRun('necromancer');
+    engine.enemies = [];
+    engine.minions = [
+      { id: 1, artId: 'summon_skeleton', kind: 'skeleton', x: 100, y: 0, facing: 0, attackTimer: 0, temporary: true, life: 10 },
+      { id: 2, artId: 'summon_skeleton', kind: 'skeleton', x: 100, y: 0, facing: 0, attackTimer: 0, temporary: true, life: 10 },
+    ];
+    engine.enemies.push(
+      {
+        id: 10,
+        archetype: 'zombie',
+        faction: 'undead',
+        isBoss: false,
+        name: 'Zombie A',
+        x: 200,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 14,
+        life: 100,
+        maxLife: 100,
+        speed: 40,
+        damage: 5,
+        xpValue: 1,
+        armor: 0,
+        resistances: {},
+        color: '#fff',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      },
+      {
+        id: 11,
+        archetype: 'zombie',
+        faction: 'undead',
+        isBoss: false,
+        name: 'Zombie B',
+        x: 201,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        radius: 14,
+        life: 100,
+        maxLife: 100,
+        speed: 40,
+        damage: 5,
+        xpValue: 1,
+        armor: 0,
+        resistances: {},
+        color: '#fff',
+        hitFlash: 0,
+        ailments: [],
+        abilityTimer: 0,
+        orbitHitCooldown: 0,
+      },
+    );
+
+    engine.update(0.05);
+    const minionDist = Math.hypot(engine.minions[0].x - engine.minions[1].x, engine.minions[0].y - engine.minions[1].y);
+    expect(minionDist).toBeGreaterThan(5);
+
+    const enemyDist = Math.hypot(engine.enemies[0].x - engine.enemies[1].x, engine.enemies[0].y - engine.enemies[1].y);
+    expect(enemyDist).toBeGreaterThan(5);
+  });
 });

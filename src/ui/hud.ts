@@ -3,11 +3,33 @@ import type { HollowWarEngine } from '../game/engine.ts';
 
 let lastHotbarKey = '';
 
+function formatConstructBadge(engine: HollowWarEngine, artId: string): string {
+  const def = ARTS[artId];
+  if (!def) return '';
+  if (def.behavior === 'minion') {
+    const active = engine.minions.filter((m) => m.artId === artId).length;
+    if (def.timedSummon && def.maxSummons) {
+      return `Active: ${active}/${def.maxSummons}`;
+    }
+    return `Active: ${active}`;
+  }
+  if (def.behavior === 'totem') {
+    const active = engine.totems.filter((t) => t.artId === artId).length;
+    return `Totems: ${active}/3`;
+  }
+  if (def.behavior === 'trap') {
+    const active = engine.traps.filter((tr) => tr.artId === artId).length;
+    return `Traps: ${active}`;
+  }
+  return '';
+}
+
 function buildHotbarHtml(engine: HollowWarEngine): string {
   return engine.arts
     .map((ar) => {
       const def = ARTS[ar.artId];
       const preview = engine.getArtPreview(ar);
+      const countText = formatConstructBadge(engine, ar.artId);
       const insTooltip =
         ar.inscriptions.length > 0
           ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(148,163,184,0.2)">
@@ -29,6 +51,11 @@ function buildHotbarHtml(engine: HollowWarEngine): string {
           <div style="font-size:11px;color:#94a3b8;margin-top:2px">
             ${Math.round(preview.estimatedDps)} DPS · ${(preview.critChance * 100).toFixed(0)}% Crit
           </div>
+          ${
+            countText
+              ? `<div class="active-count-badge" data-active-count="${ar.artId}" style="font-size:11px;font-weight:700;color:#86efac;margin-top:2px">${countText}</div>`
+              : ''
+          }
           <div class="support-pips">
             ${ar.inscriptions
               .map((ins) => `<span class="support-pip" style="color:${ins.color};border-color:${ins.color}55">${ins.shortName}</span>`)
@@ -113,6 +140,14 @@ export function renderHud(
           <div class="bar-fill" style="width:${xpPct}%;background:#f59e0b"></div>
         </div>
       </div>
+      ${
+        engine.minions.length > 0 || engine.arts.some((a) => ARTS[a.artId]?.behavior === 'minion')
+          ? `<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#cbd5e1;margin-top:6px;padding-top:5px;border-top:1px solid rgba(148,163,184,0.16)">
+              <span style="color:#94a3b8;font-weight:700">MINIONS</span>
+              <span style="color:#86efac;font-weight:700">${engine.minions.length} active</span>
+            </div>`
+          : ''
+      }
     </div>
 
     <div class="hud-center-stats" style="pointer-events:auto">
@@ -171,6 +206,11 @@ export function renderHud(
     if (hotbarKey !== lastHotbarKey) {
       existingRack.innerHTML = buildHotbarHtml(engine);
       lastHotbarKey = hotbarKey;
+    } else {
+      existingRack.querySelectorAll<HTMLElement>('[data-active-count]').forEach((el) => {
+        const artId = el.dataset.activeCount;
+        if (artId) el.textContent = formatConstructBadge(engine, artId);
+      });
     }
   }
 }

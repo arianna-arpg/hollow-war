@@ -1416,6 +1416,34 @@ export class HollowWarEngine {
         }
       }
     }
+
+    // Soft collision between ground minions so swarms migrate side-by-side around targets instead of stacking
+    const groundMinions = this.minions.filter((m) => m.kind !== 'flame_sprite');
+    for (let i = 0; i < groundMinions.length; i++) {
+      const a = groundMinions[i];
+      const rA = a.kind === 'bone_golem' ? 16 : 11;
+      for (let j = i + 1; j < groundMinions.length; j++) {
+        const b = groundMinions[j];
+        const rB = b.kind === 'bone_golem' ? 16 : 11;
+        const minSep = rA + rB + 3;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < minSep) {
+          if (dist < 0.01) {
+            const ang = (a.id * 1.618 + b.id) % 6.283;
+            dx = Math.cos(ang);
+            dy = Math.sin(ang);
+            dist = 1;
+          }
+          const push = ((minSep - dist) / dist) * 0.45;
+          a.x -= dx * push;
+          a.y -= dy * push;
+          b.x += dx * push;
+          b.y += dy * push;
+        }
+      }
+    }
   }
 
   private updateTotems(dt: number): void {
@@ -2225,6 +2253,57 @@ export class HollowWarEngine {
 
       if (dist <= e.radius + this.player.radius) {
         this.damagePlayer(e.damage);
+      }
+    }
+
+    // O(N) spatial-hash soft separation so enemies migrate side-by-side instead of clumping onto one pixel
+    const cellSize = 52;
+    const grid = new Map<number, Enemy[]>();
+    for (const e of this.enemies) {
+      if (e.life <= 0 || e.fixedVelocity) continue;
+      const cx = Math.floor(e.x / cellSize);
+      const cy = Math.floor(e.y / cellSize);
+      const key = ((cx + 2048) << 12) ^ (cy + 2048);
+      let bucket = grid.get(key);
+      if (!bucket) {
+        bucket = [];
+        grid.set(key, bucket);
+      }
+      bucket.push(e);
+    }
+
+    for (const a of this.enemies) {
+      if (a.life <= 0 || a.fixedVelocity) continue;
+      const cx = Math.floor(a.x / cellSize);
+      const cy = Math.floor(a.y / cellSize);
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          const key = ((cx + ox + 2048) << 12) ^ (cy + oy + 2048);
+          const bucket = grid.get(key);
+          if (!bucket) continue;
+          for (const b of bucket) {
+            if (b.id <= a.id) continue;
+            const minSep = (a.radius + b.radius) * 0.88;
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let dist = Math.hypot(dx, dy);
+            if (dist < minSep) {
+              if (dist < 0.01) {
+                const ang = (a.id * 2.399 + b.id) % 6.283;
+                dx = Math.cos(ang);
+                dy = Math.sin(ang);
+                dist = 1;
+              }
+              const overlap = (minSep - dist) / dist;
+              const weightA = a.isBoss ? 0.1 : b.isBoss ? 0.65 : 0.34;
+              const weightB = b.isBoss ? 0.1 : a.isBoss ? 0.65 : 0.34;
+              a.x -= dx * overlap * weightA;
+              a.y -= dy * overlap * weightA;
+              b.x += dx * overlap * weightB;
+              b.y += dy * overlap * weightB;
+            }
+          }
+        }
       }
     }
   }

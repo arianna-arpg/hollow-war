@@ -1337,7 +1337,8 @@ export class HollowWarEngine {
             continue;
           } else if (m.attackTimer <= 0) {
             const spd = Math.max(0.2, this.sheet.get('attackSpeed', def.tags, extraMods));
-            m.attackTimer = def.baseCooldown / spd;
+            const baseSwingCd = def.timedSummon && m.kind === 'skeleton' ? 0.85 : def.baseCooldown;
+            m.attackTimer = baseSwingCd / spd;
             if (m.kind === 'bone_golem') {
               const slamR = (def.baseRadius + cleaveBase * 0.5) * this.sheet.get('area', def.tags, extraMods);
               this.novas.push({ x: nearest.x, y: nearest.y, radius: 8, maxRadius: slamR, color: '#d6d3d1', life: 0.24, maxLife: 0.24 });
@@ -1368,14 +1369,29 @@ export class HollowWarEngine {
             }
           }
         } else {
-          // Patrol around player
+          // Aimless undead wandering around the necromancer when no foe is near
           const dx = this.player.x - m.x;
           const dy = this.player.y - m.y;
           const dist = Math.hypot(dx, dy);
-          if (dist > 64) {
-            m.facing = Math.atan2(dy, dx);
-            m.x += (dx / dist) * 215 * speedMult * dt;
-            m.y += (dy / dist) * 215 * speedMult * dt;
+          if (dist > 155) {
+            const toPlayer = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.45;
+            m.facing = toPlayer;
+            m.wanderAngle = toPlayer;
+            m.wanderTimer = 0.6;
+            m.x += Math.cos(toPlayer) * 165 * speedMult * dt;
+            m.y += Math.sin(toPlayer) * 165 * speedMult * dt;
+          } else {
+            m.wanderTimer = (m.wanderTimer ?? 0) - dt;
+            if (m.wanderTimer <= 0 || m.wanderAngle === undefined) {
+              m.wanderAngle = Math.random() * Math.PI * 2;
+              m.wanderTimer = 0.9 + Math.random() * 1.4;
+            }
+            // Gently curve wandering heading so they shamble like braindead undead
+            m.wanderAngle += (Math.random() - 0.5) * 1.8 * dt;
+            m.facing = m.wanderAngle;
+            const shambleSpeed = (m.kind === 'bone_golem' ? 42 : 56) * speedMult;
+            m.x += Math.cos(m.wanderAngle) * shambleSpeed * dt;
+            m.y += Math.sin(m.wanderAngle) * shambleSpeed * dt;
           }
         }
       } else {

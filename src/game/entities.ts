@@ -175,6 +175,8 @@ export interface MinionEntity {
   y: number;
   facing: number;
   attackTimer: number;
+  wanderAngle?: number;
+  wanderTimer?: number;
   temporary?: boolean;
   life?: number;
 }

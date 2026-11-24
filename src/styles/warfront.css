@@ -117,3 +117,18 @@ footer span { margin-right: auto; }
   .etch { padding: 1rem; }
   footer .brand { width: 100%; }
 }
+
+/* Reciprocal Hollow universe passage; all art stays local to this game. */
+.universe-passage{display:block;position:relative;isolation:isolate;margin-top:2rem;min-height:300px;padding:2.7rem 5% 2.7rem 48%;border-block:1px solid #a78a5c38}
+.passage-art{position:absolute;inset:-20px 42% -20px -28px;z-index:-1;overflow:hidden;mask-image:radial-gradient(ellipse closest-side,#000 35%,#000b 65%,transparent 100%)}
+.passage-art img{width:100%;height:100%;object-fit:cover;filter:saturate(.65) brightness(.8);transition:transform .7s ease,filter .7s ease}
+.passage-copy{display:grid;gap:.65rem;max-width:29rem;font-size:.98rem;line-height:1.8;color:var(--body)}
+.passage-copy .eyebrow{font-size:.68rem}.passage-copy strong{font:400 clamp(2rem,3.5vw,2.75rem)/1.2 var(--display);color:var(--paper)}
+.passage-line{font:1.1rem/1.5 var(--display);color:var(--gold)}
+.passage-cta{justify-self:start;font-size:.85rem;color:var(--gold);margin-top:.5rem;border-bottom:1px solid #a9916555;padding-bottom:4px}
+.passage-seal{position:absolute;left:40%;top:calc(50% - 30px);width:60px;height:60px;border:1px solid #b39a6250;border-radius:50%;transition:transform .7s ease;pointer-events:none}
+.passage-seal::before{content:'';position:absolute;inset:8px;border:1px solid #b39a6240;border-radius:50%}.passage-seal i{position:absolute;inset:20px;border:1px solid #c4ae79a0;transform:rotate(45deg);background:#13171a80}
+.universe-passage:hover .passage-art img,.universe-passage:focus-visible .passage-art img{transform:scale(1.035) translateX(4px);filter:saturate(.9) brightness(.95)}
+.universe-passage:hover .passage-seal,.universe-passage:focus-visible .passage-seal{transform:rotate(30deg)}
+@media(max-width:760px){.universe-passage{padding:175px 1rem 2rem}.passage-art{inset:-18px -18px auto;height:230px}.passage-seal{left:auto;right:22px;top:150px;width:44px;height:44px}.passage-seal i{inset:14px}.passage-copy .eyebrow{max-width:75%}}
+@media(prefers-reduced-motion:reduce){.passage-art img,.passage-seal{transition:none}.universe-passage:hover .passage-art img,.universe-passage:hover .passage-seal{transform:none}}
